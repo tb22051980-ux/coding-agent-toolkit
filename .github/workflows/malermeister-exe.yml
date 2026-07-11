@@ -10,6 +10,16 @@ on:
     tags: ["malermeister-v*"]
 
 jobs:
+  # Diagnose: läuft überhaupt irgendein Job? (kein checkout, keine Actions)
+  diagnose-ubuntu:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "ubuntu ok"
+  diagnose-windows:
+    runs-on: windows-latest
+    steps:
+      - run: echo "windows ok"
+
   exe:
     runs-on: windows-latest
     defaults:
