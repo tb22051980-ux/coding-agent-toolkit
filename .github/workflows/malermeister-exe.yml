@@ -50,10 +50,10 @@ jobs:
 
       - name: Release anlegen (nur bei Tag malermeister-v*)
         if: startsWith(github.ref, 'refs/tags/malermeister-v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: apps/malermeister/Malermeister.exe
-          body: |
-            Malermeister-Auftragsverwaltung — PC-Programm für Windows.
-            Herunterladen, in einen eigenen Ordner legen (z. B. C:\Malerbetrieb), doppelklicken.
-            Der Browser öffnet sich automatisch; die Handy-Adresse steht im schwarzen Fenster.
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $notizen = "Malermeister-Auftragsverwaltung - PC-Programm fuer Windows.`nHerunterladen, in einen eigenen Ordner legen (z. B. C:\Malerbetrieb), doppelklicken.`nDer Browser oeffnet sich automatisch; die Handy-Adresse steht im schwarzen Fenster."
+          gh release create $tag Malermeister.exe --title $tag --notes $notizen
