@@ -158,6 +158,39 @@
 
   .hinweis { font-size: .82rem; color: var(--text-leise); margin-top: 6px; }
 
+  /* ---------- Synchronisierung ---------- */
+  .sync-badge {
+    float: right; font-size: .72rem; font-weight: 600; padding: 3px 10px;
+    border-radius: 999px; background: rgba(255,255,255,.15); color: #fff;
+    margin-top: 2px;
+  }
+  .sync-badge.gruen { background: #14532d; }
+  .sync-badge.gelb { background: #92400e; }
+
+  /* ---------- Fotos ---------- */
+  .fotogitter { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0; }
+  .fotokachel { position: relative; }
+  .fotokachel img {
+    width: 92px; height: 92px; object-fit: cover; border-radius: 8px;
+    border: 1px solid var(--grau); cursor: pointer; background: var(--grau-hell);
+  }
+  .fotokachel .foto-loeschen {
+    position: absolute; top: -6px; right: -6px; width: 22px; height: 22px;
+    border-radius: 50%; border: none; background: var(--rot); color: #fff;
+    font-size: .8rem; cursor: pointer; line-height: 1;
+  }
+  #lightbox {
+    display: none; position: fixed; inset: 0; z-index: 50;
+    background: rgba(0,0,0,.88); align-items: center; justify-content: center; cursor: zoom-out;
+  }
+  #lightbox.offen { display: flex; }
+  #lightbox img { max-width: 96vw; max-height: 96vh; border-radius: 6px; }
+
+  /* ---------- Notiz-Assistent ---------- */
+  .vorschau-tabelle { width: 100%; border-collapse: collapse; font-size: .88rem; }
+  .vorschau-tabelle th { text-align: left; color: var(--text-leise); font-size: .78rem; padding: 4px 6px 4px 0; }
+  .vorschau-tabelle td { padding: 4px 6px 4px 0; border-top: 1px solid var(--grau); }
+
   /* ---------- Druck (Angebot / Rechnung) ---------- */
   #druckbereich { display: none; }
   @media print {
@@ -185,13 +218,15 @@
 <body>
 
 <header>
-  <h1>🎨 Auftragsverwaltung <small id="kopf-firma"></small></h1>
+  <h1>🎨 Auftragsverwaltung <small id="kopf-firma"></small><span class="sync-badge" id="sync-badge"></span></h1>
   <nav id="hauptnav"></nav>
 </header>
 
 <main id="inhalt"></main>
 
 <dialog id="dialog"></dialog>
+<dialog id="dialog2"></dialog>
+<div id="lightbox" onclick="this.classList.remove('offen')"><img id="lightbox-bild" alt="Foto in Großansicht"></div>
 <div id="druckbereich"></div>
 
 <script>
@@ -220,7 +255,16 @@ function leererZustand() {
       firma: "", inhaber: "", strasse: "", plzOrt: "", telefon: "", email: "",
       iban: "", steuernummer: "", mwst: 19, kleinunternehmer: false,
       stundensatz: 55, zahlungsziel: 14, naechsteNummer: 1,
+      preisliste: [
+        { begriff: "streichen", einheit: "m²", preis: 12.5 },
+        { begriff: "spachteln", einheit: "m²", preis: 8 },
+        { begriff: "grundieren", einheit: "m²", preis: 4.5 },
+        { begriff: "tapezieren", einheit: "m²", preis: 14 },
+        { begriff: "lackieren", einheit: "lfm", preis: 18 },
+        { begriff: "abkleben", einheit: "pausch.", preis: 90 },
+      ],
     },
+    stand: "",
     kunden: [],
     auftraege: [],
   };
@@ -242,7 +286,99 @@ function ladeDaten() {
 }
 
 function speichern() {
+  daten.stand = new Date().toISOString();
   localStorage.setItem(SPEICHER_SCHLUESSEL, JSON.stringify(daten));
+  planeSync();
+}
+
+/* ---------- Synchronisierung mit dem PC-Programm (server.js) ----------
+   Wird die App über http://<PC>:8722 geöffnet, ist der PC die führende
+   Ablage: Änderungen werden dorthin geschrieben; ist er gerade nicht
+   erreichbar (unterwegs beim Kunden), bleibt alles lokal gespeichert
+   und wird nachgereicht, sobald das Heimnetz wieder da ist.          */
+const SERVER_MOEGLICH = location.protocol === "http:" || location.protocol === "https:";
+const SYNC_FLAG = SPEICHER_SCHLUESSEL + ":ausstehend";
+let serverAktiv = false;
+let syncAusstehend = localStorage.getItem(SYNC_FLAG) === "1";
+let syncTimer = null;
+let syncLaeuft = false;
+
+function syncAnzeige() {
+  const el = document.getElementById("sync-badge");
+  if (!el) return;
+  if (!SERVER_MOEGLICH) { el.textContent = ""; el.className = "sync-badge"; el.style.display = "none"; return; }
+  el.style.display = "";
+  if (serverAktiv && !syncAusstehend) { el.textContent = "✓ Mit PC synchron"; el.className = "sync-badge gruen"; }
+  else if (syncAusstehend) { el.textContent = "⏳ Wird übertragen, sobald der PC erreichbar ist"; el.className = "sync-badge gelb"; }
+  else { el.textContent = "PC nicht erreichbar – Daten bleiben lokal"; el.className = "sync-badge gelb"; }
+}
+
+function planeSync() {
+  if (!SERVER_MOEGLICH) return;
+  syncAusstehend = true;
+  localStorage.setItem(SYNC_FLAG, "1");
+  syncAnzeige();
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(syncJetzt, 400);
+}
+
+async function syncJetzt() {
+  if (!SERVER_MOEGLICH || syncLaeuft) return;
+  syncLaeuft = true;
+  try {
+    const antwort = await fetch("api/daten", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(daten),
+    });
+    if (!antwort.ok) throw new Error("Serverantwort " + antwort.status);
+    serverAktiv = true;
+    syncAusstehend = false;
+    localStorage.removeItem(SYNC_FLAG);
+    fotoSync();
+  } catch {
+    serverAktiv = false;
+  } finally {
+    syncLaeuft = false;
+    syncAnzeige();
+  }
+}
+
+// Regelmäßiger Abgleich: eigene Änderungen nachschieben bzw. neuere
+// Stände vom PC übernehmen (z. B. wenn dort weitergearbeitet wurde).
+async function syncAbgleich() {
+  if (!SERVER_MOEGLICH || syncLaeuft) return;
+  if (syncAusstehend) { syncJetzt(); return; }
+  try {
+    const antwort = await fetch("api/daten", { cache: "no-store" });
+    if (!antwort.ok) throw new Error("Serverantwort " + antwort.status);
+    serverAktiv = true;
+    const serverDaten = await antwort.json();
+    if (serverDaten && serverDaten.stand && serverDaten.stand > (daten.stand || "")) {
+      daten = Object.assign(leererZustand(), serverDaten, {
+        einstellungen: Object.assign(leererZustand().einstellungen, serverDaten.einstellungen || {}),
+      });
+      localStorage.setItem(SPEICHER_SCHLUESSEL, JSON.stringify(daten));
+      if (!dialog.open && !dialog2.open) render();
+    }
+    fotoSync();
+  } catch {
+    serverAktiv = false;
+  }
+  syncAnzeige();
+}
+
+async function syncStart() {
+  if (!SERVER_MOEGLICH) { syncAnzeige(); return; }
+  await syncAbgleich();
+  // Erststart am Server: lokale Daten hochladen, falls dort noch nichts liegt
+  if (serverAktiv && (daten.kunden.length || daten.auftraege.length) && !syncAusstehend) {
+    try {
+      const antwort = await fetch("api/daten", { cache: "no-store" });
+      if (antwort.ok && (await antwort.json()) === null) planeSync();
+    } catch { /* nächster Abgleich versucht es erneut */ }
+  }
+  setInterval(syncAbgleich, 20000);
 }
 
 function uid() {
@@ -470,6 +606,7 @@ function renderKunden() {
    Dialoge
    ========================================================= */
 const dialog = document.getElementById("dialog");
+const dialog2 = document.getElementById("dialog2");
 
 function dialogOeffnen(html) {
   dialog.innerHTML = html;
@@ -584,7 +721,10 @@ function auftragBearbeiten(id, vorbelegterKundeId) {
       <div><label>Beschreibung / Absprachen</label><textarea id="a-beschreibung" style="min-height:44px">${esc(a.beschreibung)}</textarea></div>
     </div>
 
-    <label>Positionen (für Angebot / Rechnung)</label>
+    <div class="zeile" style="justify-content:space-between;margin-top:12px">
+      <label style="margin:0">Positionen (für Angebot / Rechnung)</label>
+      <button class="sekundaer klein" onclick="assistentOeffnen()">🪄 Positionen aus Notizen</button>
+    </div>
     <table class="positionen">
       <thead><tr><th>Leistung</th><th>Menge</th><th>Einheit</th><th>€/Einheit</th><th style="text-align:right">Summe</th><th></th></tr></thead>
       <tbody id="a-positionen"></tbody>
@@ -596,6 +736,13 @@ function auftragBearbeiten(id, vorbelegterKundeId) {
       <div><label>Material / Einkaufsliste</label><textarea id="a-material">${esc(a.material)}</textarea></div>
       <div><label>Interne Notizen</label><textarea id="a-notizen">${esc(a.notizen)}</textarea></div>
     </div>
+
+    <label>📷 Fotos (Baustelle, Aufmaß, Schäden)</label>
+    ${id ? `
+    <div class="fotogitter" id="a-fotos"></div>
+    <button class="sekundaer klein" onclick="document.getElementById('a-fotoeingabe').click()">📷 Foto aufnehmen / hinzufügen</button>
+    <input type="file" id="a-fotoeingabe" accept="image/*" capture="environment" multiple style="display:none" onchange="fotoHinzufuegen(this,'${id}')">
+    ` : `<div class="hinweis">Auftrag zuerst speichern — danach können Fotos aufgenommen werden.</div>`}
     ${a.angebotNr || a.rechnungNr ? `<div class="hinweis">${a.angebotNr ? "Angebot Nr. " + esc(a.angebotNr) : ""}${a.angebotNr && a.rechnungNr ? " · " : ""}${a.rechnungNr ? "Rechnung Nr. " + esc(a.rechnungNr) : ""}</div>` : ""}
   </div>
   <div class="dialog-fuss">
@@ -607,6 +754,7 @@ function auftragBearbeiten(id, vorbelegterKundeId) {
     </div>
   </div>`);
   positionenRendern();
+  if (id) fotosRendern(a);
   document.getElementById("a-titel").focus();
 }
 
@@ -682,6 +830,11 @@ function auftragSpeichern(id) {
 
 function auftragLoeschen(id) {
   if (!confirm("Diesen Auftrag wirklich löschen?")) return;
+  const a = daten.auftraege.find((x) => x.id === id);
+  for (const f of (a && a.fotos) || []) {
+    fotoLokalLoeschen(f.id).catch(() => {});
+    if (SERVER_MOEGLICH) fetch("api/fotos/" + f.id, { method: "DELETE" }).catch(() => {});
+  }
   daten.auftraege = daten.auftraege.filter((x) => x.id !== id);
   speichern();
   dialogSchliessen();
@@ -791,6 +944,246 @@ function auftragSpeichernStill(id) {
 }
 
 /* =========================================================
+   Fotos — lokal im Browser (IndexedDB), Abgleich mit dem PC
+   ========================================================= */
+let fotoDbVersprechen = null;
+function fotoDb() {
+  if (!fotoDbVersprechen) {
+    fotoDbVersprechen = new Promise((aufloesen, ablehnen) => {
+      const anfrage = indexedDB.open("maler-fotos", 1);
+      anfrage.onupgradeneeded = () => anfrage.result.createObjectStore("fotos", { keyPath: "id" });
+      anfrage.onsuccess = () => aufloesen(anfrage.result);
+      anfrage.onerror = () => ablehnen(anfrage.error);
+    });
+  }
+  return fotoDbVersprechen;
+}
+
+function fotoDbAktion(modus, arbeit) {
+  return fotoDb().then((db) => new Promise((aufloesen, ablehnen) => {
+    const tx = db.transaction("fotos", modus);
+    const anfrage = arbeit(tx.objectStore("fotos"));
+    anfrage.onsuccess = () => aufloesen(anfrage.result);
+    anfrage.onerror = () => ablehnen(anfrage.error);
+  }));
+}
+
+const fotoLokalSpeichern = (eintrag) => fotoDbAktion("readwrite", (s) => s.put(eintrag));
+const fotoLokalHolen = (id) => fotoDbAktion("readonly", (s) => s.get(id));
+const fotoLokalLoeschen = (id) => fotoDbAktion("readwrite", (s) => s.delete(id));
+const fotoAlleLokal = () => fotoDbAktion("readonly", (s) => s.getAll());
+
+// Foto verkleinern (max. 1600 px, JPEG) — spart Speicher und Übertragungszeit
+function fotoVerkleinern(datei) {
+  return new Promise((aufloesen, ablehnen) => {
+    const bild = new Image();
+    bild.onload = () => {
+      const faktor = Math.min(1, 1600 / Math.max(bild.width, bild.height));
+      const leinwand = document.createElement("canvas");
+      leinwand.width = Math.round(bild.width * faktor);
+      leinwand.height = Math.round(bild.height * faktor);
+      leinwand.getContext("2d").drawImage(bild, 0, 0, leinwand.width, leinwand.height);
+      URL.revokeObjectURL(bild.src);
+      leinwand.toBlob((blob) => blob ? aufloesen(blob) : ablehnen(new Error("Bild konnte nicht verarbeitet werden")), "image/jpeg", 0.82);
+    };
+    bild.onerror = () => ablehnen(new Error("Datei ist kein lesbares Bild"));
+    bild.src = URL.createObjectURL(datei);
+  });
+}
+
+async function fotoHinzufuegen(eingabe, auftragId) {
+  const a = daten.auftraege.find((x) => x.id === auftragId);
+  if (!a) return;
+  a.fotos = a.fotos || [];
+  for (const datei of eingabe.files) {
+    try {
+      const blob = await fotoVerkleinern(datei);
+      const id = uid();
+      await fotoLokalSpeichern({ id, blob, hochgeladen: false });
+      a.fotos.push({ id, am: heuteISO() });
+    } catch (fehler) {
+      alert("Foto konnte nicht übernommen werden: " + fehler.message);
+    }
+  }
+  eingabe.value = "";
+  a.geaendertAm = new Date().toISOString();
+  speichern();
+  fotosRendern(a);
+}
+
+async function fotoEntfernen(auftragId, fotoId) {
+  if (!confirm("Dieses Foto löschen?")) return;
+  const a = daten.auftraege.find((x) => x.id === auftragId);
+  if (!a) return;
+  a.fotos = (a.fotos || []).filter((f) => f.id !== fotoId);
+  speichern();
+  fotoLokalLoeschen(fotoId).catch(() => {});
+  if (SERVER_MOEGLICH) fetch("api/fotos/" + fotoId, { method: "DELETE" }).catch(() => {});
+  fotosRendern(a);
+}
+
+async function fotosRendern(a) {
+  const behaelter = document.getElementById("a-fotos");
+  if (!behaelter) return;
+  const fotos = a.fotos || [];
+  behaelter.innerHTML = fotos.map((f) => `
+    <div class="fotokachel">
+      <img id="foto-${f.id}" alt="Baustellenfoto vom ${datumFormat(f.am)}" title="Aufgenommen am ${datumFormat(f.am)}">
+      <button class="foto-loeschen" title="Foto löschen" onclick="fotoEntfernen('${a.id}','${f.id}')">×</button>
+    </div>`).join("");
+  for (const f of fotos) {
+    const bild = document.getElementById("foto-" + f.id);
+    if (!bild) continue;
+    try {
+      const lokal = await fotoLokalHolen(f.id);
+      bild.src = lokal ? URL.createObjectURL(lokal.blob) : (SERVER_MOEGLICH ? "api/fotos/" + f.id : "");
+    } catch {
+      if (SERVER_MOEGLICH) bild.src = "api/fotos/" + f.id;
+    }
+    bild.onclick = () => {
+      document.getElementById("lightbox-bild").src = bild.src;
+      document.getElementById("lightbox").classList.add("offen");
+    };
+  }
+}
+
+// Noch nicht übertragene Fotos zum PC hochladen (läuft im Hintergrund)
+let fotoSyncLaeuft = false;
+async function fotoSync() {
+  if (!SERVER_MOEGLICH || !serverAktiv || fotoSyncLaeuft) return;
+  fotoSyncLaeuft = true;
+  try {
+    const alle = await fotoAlleLokal();
+    for (const eintrag of alle.filter((x) => !x.hochgeladen)) {
+      const datenUrl = await new Promise((aufloesen, ablehnen) => {
+        const leser = new FileReader();
+        leser.onload = () => aufloesen(leser.result);
+        leser.onerror = () => ablehnen(leser.error);
+        leser.readAsDataURL(eintrag.blob);
+      });
+      const antwort = await fetch("api/fotos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: eintrag.id, datenUrl }),
+      });
+      if (!antwort.ok) break;
+      eintrag.hochgeladen = true;
+      await fotoLokalSpeichern(eintrag);
+    }
+  } catch { /* nächster Abgleich versucht es erneut */ }
+  fotoSyncLaeuft = false;
+}
+
+/* =========================================================
+   Notiz-Assistent — Notizen in Angebots-Positionen verwandeln
+   ========================================================= */
+const EINHEIT_ERKENNUNG = [
+  [/^(m²|m2|qm)$/i, "m²"],
+  [/^(std\.?|stunden?|h)$/i, "Std."],
+  [/^(stk\.?|stück)$/i, "Stk."],
+  [/^lfm$/i, "lfm"],
+  [/^(liter|l)$/i, "Liter"],
+  [/^pausch(al|\.)?$/i, "pausch."],
+];
+
+function zahlDe(text) { return Number(String(text).replace(",", ".")); }
+
+// Eine Notizzeile wie „Wohnzimmer Wände 62 m² streichen à 12,50“ zerlegen.
+// Zeilen ohne Mengen- oder Preisangabe gelten als Beschreibung und werden übersprungen.
+function zeileZuPosition(zeile) {
+  const mengeTreffer = zeile.match(/(\d+(?:[.,]\d+)?)\s*(m²|m2|qm|std\.?|stunden?|stk\.?|stück|lfm|liter|pausch(?:al|\.)?|h|l)(?![a-zäöü])/i);
+  const preisTreffer = zeile.match(/(?:à|je|zu)\s*(\d+(?:[.,]\d+)?)\s*(?:€|eur)?|(\d+(?:[.,]\d+)?)\s*(?:€|eur)/i);
+  if (!mengeTreffer && !preisTreffer) return null;
+
+  let einheit = "pausch.";
+  if (mengeTreffer) {
+    for (const [muster, name] of EINHEIT_ERKENNUNG) {
+      if (muster.test(mengeTreffer[2])) { einheit = name; break; }
+    }
+  }
+  const menge = mengeTreffer ? zahlDe(mengeTreffer[1]) : 1;
+
+  let preis = preisTreffer ? zahlDe(preisTreffer[1] ?? preisTreffer[2]) : "";
+  let quelle = preisTreffer ? "aus Notiz" : "";
+  if (preis === "" || isNaN(preis)) {
+    const klein = zeile.toLowerCase();
+    const eintrag = (daten.einstellungen.preisliste || []).find((p) => p.begriff && klein.includes(p.begriff.toLowerCase()));
+    if (eintrag) { preis = Number(eintrag.preis) || ""; quelle = "Preisliste „" + eintrag.begriff + "“"; }
+    else if (einheit === "Std.") { preis = Number(daten.einstellungen.stundensatz) || ""; quelle = "Stundensatz"; }
+    else { preis = ""; quelle = "bitte ergänzen"; }
+  }
+
+  let bezeichnung = zeile;
+  if (mengeTreffer) bezeichnung = bezeichnung.replace(mengeTreffer[0], " ");
+  if (preisTreffer) bezeichnung = bezeichnung.replace(preisTreffer[0], " ");
+  bezeichnung = bezeichnung.replace(/[,;:–-]\s*$/g, "").replace(/\s{2,}/g, " ").trim();
+  if (!bezeichnung) bezeichnung = zeile.trim();
+
+  return { bezeichnung, menge, einheit, preis, quelle };
+}
+
+function notizenZuPositionen(text) {
+  return String(text || "").split(/\n/).map((z) => zeileZuPosition(z.trim())).filter(Boolean);
+}
+
+function assistentOeffnen() {
+  const vorbelegung = [document.getElementById("a-beschreibung")?.value, document.getElementById("a-notizen")?.value]
+    .filter(Boolean).join("\n");
+  dialog2.innerHTML = `
+  <div class="dialog-kopf">
+    <h2>🪄 Positionen aus Notizen</h2>
+    <button class="schliessen" onclick="dialog2.close()" aria-label="Schließen">×</button>
+  </div>
+  <div class="dialog-inhalt">
+    <label>Notizen (eine Leistung je Zeile, z. B. „Wohnzimmer Wände 62 m² streichen“)</label>
+    <textarea id="as-text" style="min-height:120px" oninput="assistentVorschau()">${esc(vorbelegung)}</textarea>
+    <div class="hinweis">Erkannt werden Mengen (m², Std., Stk., lfm, Liter), Preise („à 12,50“ oder „120 €“)
+    und Begriffe aus deiner Preisliste (Einstellungen). Zeilen ohne Menge/Preis bleiben unberücksichtigt.</div>
+    <label>Vorschau</label>
+    <div id="as-vorschau"></div>
+  </div>
+  <div class="dialog-fuss">
+    <span></span>
+    <div class="rechtsgruppe">
+      <button class="sekundaer" onclick="dialog2.close()">Abbrechen</button>
+      <button class="primaer" onclick="assistentUebernehmen()">In Auftrag übernehmen</button>
+    </div>
+  </div>`;
+  dialog2.showModal();
+  assistentVorschau();
+}
+
+function assistentVorschau() {
+  const gefunden = notizenZuPositionen(document.getElementById("as-text").value);
+  const ziel = document.getElementById("as-vorschau");
+  if (gefunden.length === 0) {
+    ziel.innerHTML = `<div class="leer" style="padding:12px">Noch keine verwertbare Zeile gefunden.</div>`;
+    return;
+  }
+  const summe = gefunden.reduce((s, p) => s + p.menge * (Number(p.preis) || 0), 0);
+  ziel.innerHTML = `
+  <table class="vorschau-tabelle">
+    <tr><th>Leistung</th><th>Menge</th><th>€/Einheit</th><th>Preis-Herkunft</th></tr>
+    ${gefunden.map((p) => `<tr>
+      <td>${esc(p.bezeichnung)}</td>
+      <td>${p.menge} ${p.einheit}</td>
+      <td>${p.preis === "" ? "–" : euro(Number(p.preis))}</td>
+      <td class="hinweis" style="margin:0">${esc(p.quelle)}</td>
+    </tr>`).join("")}
+  </table>
+  <div class="summenblock">Netto bisher: <strong>${euro(summe)}</strong></div>`;
+}
+
+function assistentUebernehmen() {
+  const gefunden = notizenZuPositionen(document.getElementById("as-text").value);
+  if (gefunden.length === 0) { alert("Keine verwertbare Zeile gefunden — bitte Menge oder Preis ergänzen (z. B. „62 m²“)."); return; }
+  if (bearbeitungsPositionen.length === 1 && !bearbeitungsPositionen[0].bezeichnung.trim()) bearbeitungsPositionen = [];
+  for (const p of gefunden) bearbeitungsPositionen.push({ bezeichnung: p.bezeichnung, menge: p.menge, einheit: p.einheit, preis: p.preis });
+  dialog2.close();
+  positionenRendern();
+}
+
+/* =========================================================
    Einstellungen, Sicherung, Beispieldaten
    ========================================================= */
 function renderEinstellungen() {
@@ -811,7 +1204,11 @@ function renderEinstellungen() {
     <div class="feldpaar">
       <div><label>Umsatzsteuersatz (%)</label><input id="e-mwst" type="number" step="1" min="0" value="${esc(e.mwst)}"></div>
       <div><label>Zahlungsziel (Tage)</label><input id="e-zahlungsziel" type="number" step="1" min="0" value="${esc(e.zahlungsziel)}"></div>
+      <div><label>Stundensatz (€)</label><input id="e-stundensatz" type="number" step="0.5" min="0" value="${esc(e.stundensatz)}"></div>
     </div>
+    <label>Preisliste für den Notiz-Assistenten <span style="font-weight:400">(je Zeile: Begriff ; Preis ; Einheit)</span></label>
+    <textarea id="e-preisliste" style="min-height:110px" placeholder="streichen ; 12,50 ; m²">${esc((e.preisliste || []).map((p) => p.begriff + " ; " + String(p.preis).replace(".", ",") + " ; " + p.einheit).join("\n"))}</textarea>
+    <div class="hinweis">Taucht ein Begriff (z. B. „streichen“) in einer Notizzeile auf, setzt der Assistent automatisch diesen Preis ein.</div>
     <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-size:.9rem">
       <input type="checkbox" id="e-kleinunternehmer" style="width:auto" ${e.kleinunternehmer ? "checked" : ""}>
       Kleinunternehmer nach § 19 UStG (keine Umsatzsteuer ausweisen)
@@ -851,7 +1248,15 @@ function einstellungenSpeichern() {
   e.steuernummer = document.getElementById("e-steuernummer").value.trim();
   e.mwst = Number(document.getElementById("e-mwst").value) || 0;
   e.zahlungsziel = Number(document.getElementById("e-zahlungsziel").value) || 14;
+  e.stundensatz = Number(document.getElementById("e-stundensatz").value) || 0;
   e.kleinunternehmer = document.getElementById("e-kleinunternehmer").checked;
+  e.preisliste = document.getElementById("e-preisliste").value.split(/\n/)
+    .map((zeile) => {
+      const teile = zeile.split(";").map((t) => t.trim());
+      if (teile.length < 2 || !teile[0]) return null;
+      return { begriff: teile[0], preis: zahlDe(teile[1]) || 0, einheit: teile[2] || "m²" };
+    })
+    .filter(Boolean);
   speichern();
   render();
   alert("Einstellungen gespeichert.");
@@ -937,6 +1342,8 @@ function beispieldatenLaden() {
 
 /* Start */
 render();
+syncAnzeige();
+syncStart();
 </script>
 </body>
 </html>

@@ -16,6 +16,17 @@ Anfragen, Angebote, Termine, laufende Arbeiten, Rechnungen, Kunden.
 - Datensicherung per JSON-Export/-Import.
 - Deutsche Oberfläche und Anleitung.
 
+## Ausbaustufe 2 (Nutzer-Feedback)
+
+- Fotos mit dem Handy aufnehmen, je Auftrag abgelegt.
+- Automatische Synchronisierung im Heimnetz mit einem PC-Programm
+  (`server.js`, nur Node-Bordmittel; Daten + Fotos unter `daten/`).
+- Offline beim Kunden weiterarbeiten; ausstehende Änderungen und
+  Fotos werden nachgereicht (Anzeige im Kopf der App).
+- Notiz-Assistent: Notizzeilen → Angebots-Positionen (Mengen-,
+  Preis- und Preislisten-Erkennung; Preisliste + Stundensatz in den
+  Einstellungen pflegbar).
+
 ## Entscheidungen
 
 - **Single-File-HTML + localStorage** statt Server-App: Zielnutzer hat
