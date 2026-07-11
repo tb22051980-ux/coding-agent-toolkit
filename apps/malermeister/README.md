@@ -9,28 +9,39 @@ Es gibt zwei Betriebsarten:
 
 | | Ohne PC-Programm | Mit PC-Programm (empfohlen) |
 |---|---|---|
-| Start | `index.html` doppelklicken | `start-windows.bat` doppelklicken (bzw. `node server.js`) |
+| Start | `index.html` doppelklicken | `Malermeister.exe` doppelklicken |
 | Daten liegen | im Browser des einen Geräts | zentral auf dem PC |
 | Handy ↔ PC | manuell per Sicherungsdatei | **automatisch im Heimnetz** |
 | Fotos | ja (nur lokal) | ja, landen automatisch auf dem PC |
 
 ## Einrichtung mit PC-Programm (einmalig, ca. 5 Minuten)
 
-1. Einmalig [Node.js](https://nodejs.org) auf dem PC installieren
-   (kostenlos, „LTS“-Version, immer „Weiter“ klicken).
-2. Den Ordner mit `index.html`, `server.js` und `start-windows.bat`
-   auf den PC kopieren, z. B. nach `C:\Malerbetrieb`.
-3. `start-windows.bat` doppelklicken. Es öffnet sich ein Fenster, das
-   zwei Adressen anzeigt:
+1. `Malermeister.exe` herunterladen — sie wird automatisch gebaut und
+   liegt bei den GitHub-**Releases** dieses Projekts (bzw. als
+   Artefakt des Workflows „Malermeister Windows-Exe bauen“). Es muss
+   nichts weiter installiert werden.
+2. Die Datei in einen eigenen Ordner legen, z. B. `C:\Malerbetrieb`,
+   und doppelklicken. Windows fragt beim ersten Start eventuell nach
+   („Weitere Informationen“ → „Trotzdem ausführen“ und ggf. die
+   Firewall-Freigabe fürs Heimnetz erlauben). Der Browser öffnet sich
+   automatisch; im schwarzen Fenster stehen zwei Adressen:
    - **Am PC öffnen:** `http://localhost:8722`
    - **Am Handy öffnen:** `http://192.168.…:8722` (gleiches WLAN nötig)
-4. Die Handy-Adresse einmal im Handy-Browser öffnen und über „Zum
+3. Die Handy-Adresse einmal im Handy-Browser öffnen und über „Zum
    Startbildschirm hinzufügen“ ablegen — fertig, fühlt sich an wie
    eine App.
+4. Optional: eine Verknüpfung der Exe in den Windows-Autostart legen
+   (Windows-Taste + R → `shell:startup`), dann läuft die
+   Synchronisierung nach jedem PC-Start automatisch.
 
 Das schwarze Fenster muss laufen, solange synchronisiert werden soll.
-Alle Daten und Fotos liegen im Ordner `daten` neben `server.js` — den
-Ordner sichern heißt alles sichern.
+Alle Daten und Fotos liegen im Ordner `daten` neben der Exe (falls
+dort nicht geschrieben werden darf, im Benutzerprofil unter
+`MalermeisterAuftragsverwaltung`) — diesen Ordner sichern heißt alles
+sichern.
+
+Alternative ohne Exe: [Node.js](https://nodejs.org) installieren und
+`start-windows.bat` doppelklicken (startet `node server.js`).
 
 ## Der typische Ablauf
 
@@ -93,5 +104,10 @@ arbeitet unterwegs normal weiter und speichert alles lokal.
 - `server.js` — Heimnetz-Server, nur Node.js-Bordmittel. REST-API:
   `GET/PUT /api/daten`, `POST/GET/DELETE /api/fotos`, Ablage in
   `daten/daten.json` und `daten/fotos/*.jpg` (atomares Schreiben).
+- `Malermeister.exe` — derselbe Server als eigenständiges
+  Windows-Programm (Node „Single Executable Application“ mit
+  eingebetteter `index.html`, siehe `sea-config.json`); gebaut vom
+  Workflow `.github/workflows/malermeister-exe.yml`. Ein Release
+  entsteht beim Taggen mit `malermeister-v*`.
 - Abgleich: letzter Stand gewinnt (Zeitstempel `stand`); ausstehende
   Änderungen und Fotos werden alle 20 s nachgereicht.

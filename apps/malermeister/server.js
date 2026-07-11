@@ -15,15 +15,44 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+const { spawn } = require("child_process");
+
+// Läuft dieses Programm als fertige Exe (Node Single Executable Application)?
+let seaModul = null;
+try {
+  const sea = require("node:sea");
+  if (sea.isSea()) seaModul = sea;
+} catch { /* normaler node-Start */ }
+
+function indexHtmlLaden() {
+  if (seaModul) return Buffer.from(seaModul.getAsset("index.html"));
+  return fs.readFileSync(path.join(__dirname, "index.html"));
+}
+
+// Datenablage: neben dem Programm, wenn dort geschrieben werden darf
+// (z. B. C:\Malerbetrieb); sonst im Benutzerprofil (z. B. bei
+// Installation unter C:\Programme).
+function datenBasisWaehlen() {
+  const kandidaten = [seaModul ? path.dirname(process.execPath) : __dirname];
+  const profil = process.env.LOCALAPPDATA || path.join(os.homedir(), ".malermeister");
+  kandidaten.push(path.join(profil, "MalermeisterAuftragsverwaltung"));
+  for (const basis of kandidaten) {
+    try {
+      const ordner = path.join(basis, "daten");
+      fs.mkdirSync(path.join(ordner, "fotos"), { recursive: true });
+      fs.writeFileSync(path.join(ordner, ".schreibtest"), "ok");
+      fs.unlinkSync(path.join(ordner, ".schreibtest"));
+      return ordner;
+    } catch { /* nächsten Kandidaten versuchen */ }
+  }
+  throw new Error("Kein beschreibbarer Datenordner gefunden");
+}
 
 const PORT = Number(process.env.PORT) || 8722;
-const WURZEL = __dirname;
-const DATEN_ORDNER = path.join(WURZEL, "daten");
+const DATEN_ORDNER = datenBasisWaehlen();
 const FOTO_ORDNER = path.join(DATEN_ORDNER, "fotos");
 const DATEN_DATEI = path.join(DATEN_ORDNER, "daten.json");
 const MAX_KOERPER = 25 * 1024 * 1024; // 25 MB (Fotos kommen als Base64)
-
-fs.mkdirSync(FOTO_ORDNER, { recursive: true });
 
 function antwortJson(res, code, objekt) {
   const text = JSON.stringify(objekt);
@@ -64,9 +93,8 @@ const server = http.createServer(async (req, res) => {
 
     // ---- App ausliefern ----
     if (req.method === "GET" && (pfad === "/" || pfad === "/index.html")) {
-      const html = fs.readFileSync(path.join(WURZEL, "index.html"));
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
-      res.end(html);
+      res.end(indexHtmlLaden());
       return;
     }
 
@@ -147,4 +175,24 @@ server.listen(PORT, "0.0.0.0", () => {
   }
   console.log("");
   console.log("   Fenster offen lassen. Beenden mit Strg+C.");
+
+  // Beim Doppelklick auf die Exe direkt den Browser öffnen
+  if (seaModul && process.platform === "win32") {
+    spawn("cmd", ["/c", "start", "", "http://localhost:" + PORT], { detached: true, stdio: "ignore" }).unref();
+  }
+});
+
+server.on("error", (fehler) => {
+  if (fehler.code === "EADDRINUSE") {
+    console.error("Das Programm läuft offenbar schon (Port " + PORT + " ist belegt).");
+    console.error("Einfach im Browser http://localhost:" + PORT + " öffnen.");
+    if (process.platform === "win32" && process.stdin.isTTY) {
+      console.error("Dieses Fenster kann geschlossen werden.");
+      setTimeout(() => process.exit(1), 15000);
+      return;
+    }
+  } else {
+    console.error("Start fehlgeschlagen:", fehler.message);
+  }
+  process.exit(1);
 });

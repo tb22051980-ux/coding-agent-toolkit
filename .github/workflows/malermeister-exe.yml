@@ -1,0 +1,59 @@
+name: Malermeister Windows-Exe bauen
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["**"]
+    paths:
+      - "apps/malermeister/**"
+      - ".github/workflows/malermeister-exe.yml"
+    tags: ["malermeister-v*"]
+
+jobs:
+  exe:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: apps/malermeister
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: SEA-Blob erzeugen (index.html eingebettet)
+        run: node --experimental-sea-config sea-config.json
+
+      - name: node.exe kopieren und Blob injizieren
+        run: |
+          node -e "require('fs').copyFileSync(process.execPath, 'Malermeister.exe')"
+          npx --yes postject Malermeister.exe NODE_SEA_BLOB sea-prep.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
+
+      - name: Exe testen (Server starten, API und App-Auslieferung pruefen)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath ".\Malermeister.exe" -PassThru
+          Start-Sleep -Seconds 4
+          $status = (Invoke-WebRequest -UseBasicParsing http://localhost:8722/api/status).StatusCode
+          $app = Invoke-WebRequest -UseBasicParsing http://localhost:8722/
+          Stop-Process -Id $p.Id -Force
+          if ($status -ne 200) { throw "api/status: $status" }
+          if ($app.Content -notmatch "Auftragsverwaltung") { throw "index.html fehlt in der Exe" }
+          Write-Host "Exe funktioniert."
+
+      - name: Exe als Artefakt bereitstellen
+        uses: actions/upload-artifact@v4
+        with:
+          name: Malermeister-Windows
+          path: apps/malermeister/Malermeister.exe
+
+      - name: Release anlegen (nur bei Tag malermeister-v*)
+        if: startsWith(github.ref, 'refs/tags/malermeister-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: apps/malermeister/Malermeister.exe
+          body: |
+            Malermeister-Auftragsverwaltung — PC-Programm für Windows.
+            Herunterladen, in einen eigenen Ordner legen (z. B. C:\Malerbetrieb), doppelklicken.
+            Der Browser öffnet sich automatisch; die Handy-Adresse steht im schwarzen Fenster.
