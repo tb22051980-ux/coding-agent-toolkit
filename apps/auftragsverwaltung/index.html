@@ -196,6 +196,45 @@
   .vorschau-tabelle th { text-align: left; color: var(--text-leise); font-size: .78rem; padding: 4px 6px 4px 0; }
   .vorschau-tabelle td { padding: 4px 6px 4px 0; border-top: 1px solid var(--grau); }
 
+  /* ---------- Stundenzettel ---------- */
+  .zeitzeile { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+  .zeitzeile input { padding: 7px 8px; }
+  .zeitzeile .z-datum { width: 150px; }
+  .zeitzeile .z-zeit { width: 78px; }
+  .zeitzeile .z-dauer { flex: 1; color: var(--text-leise); font-size: .85rem; white-space: nowrap; }
+  .stoppuhr-laeuft { background: var(--rot) !important; color: #fff !important; }
+  .zeit-summe { text-align: right; font-size: .9rem; color: var(--text-leise); margin-top: 4px; }
+
+  /* ---------- Terminkalender ---------- */
+  .kal-kopf { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .kal-kopf h2 { margin: 0; font-size: 1.1rem; }
+  .kal-gitter { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .kal-wtag { text-align: center; font-size: .72rem; font-weight: 600; color: var(--text-leise); padding: 4px 0; }
+  .kal-tag {
+    min-height: 62px; border: 1px solid var(--grau); border-radius: 8px; padding: 4px;
+    font-size: .8rem; background: #fff; display: flex; flex-direction: column; gap: 2px;
+  }
+  .kal-tag.leer { background: transparent; border: none; }
+  .kal-tag.heute { border-color: var(--blau); border-width: 2px; }
+  .kal-tag .tagzahl { font-size: .72rem; color: var(--text-leise); font-weight: 600; }
+  .kal-punkt {
+    font-size: .68rem; background: var(--blau); color: #fff; border-radius: 4px;
+    padding: 1px 4px; cursor: pointer; border: none; text-align: left;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%;
+  }
+  @media (max-width: 560px) {
+    .kal-tag { min-height: 44px; }
+    .kal-punkt { font-size: 0; padding: 3px; }
+    .kal-punkt::before { content: "●"; font-size: .7rem; }
+  }
+
+  /* ---------- Umsatz ---------- */
+  .umsatz-tabelle { width: 100%; border-collapse: collapse; }
+  .umsatz-tabelle th, .umsatz-tabelle td { padding: 8px 6px; text-align: right; border-bottom: 1px solid var(--grau); font-variant-numeric: tabular-nums; }
+  .umsatz-tabelle th:first-child, .umsatz-tabelle td:first-child { text-align: left; }
+  .umsatz-tabelle tr.gesamt td { font-weight: 700; border-top: 2px solid var(--text-leise); }
+  .umsatz-balken { height: 10px; background: var(--blau); border-radius: 5px; }
+
   /* ---------- Druck (Angebot / Rechnung) ---------- */
   #druckbereich { display: none; }
   @media print {
@@ -511,6 +550,8 @@ function neueDokumentNummer() {
 const ANSICHTEN = [
   { id: "uebersicht", name: "Übersicht" },
   { id: "auftraege",  name: "Aufträge" },
+  { id: "termine",    name: "Termine" },
+  { id: "umsatz",     name: "Umsatz" },
   { id: "kunden",     name: "Kunden" },
   { id: "einstellungen", name: "Einstellungen" },
 ];
@@ -533,6 +574,8 @@ function render() {
   const inhalt = document.getElementById("inhalt");
   if (aktiveAnsicht === "uebersicht") inhalt.innerHTML = renderUebersicht();
   else if (aktiveAnsicht === "auftraege") inhalt.innerHTML = renderAuftraege();
+  else if (aktiveAnsicht === "termine") inhalt.innerHTML = renderTermine();
+  else if (aktiveAnsicht === "umsatz") inhalt.innerHTML = renderUmsatz();
   else if (aktiveAnsicht === "kunden") inhalt.innerHTML = renderKunden();
   else inhalt.innerHTML = renderEinstellungen();
 }
@@ -759,15 +802,19 @@ function kundeLoeschen(id) {
 
 /* ---------- Auftrag bearbeiten ---------- */
 let bearbeitungsPositionen = [];
+let bearbeitungsZeiten = [];
+let stoppuhrStart = null; // Zeitstempel (ms) einer laufenden Stoppuhr, sonst null
+let stoppuhrTimer = null;
 
 function auftragBearbeiten(id, vorbelegterKundeId) {
   const a = id
     ? daten.auftraege.find((x) => x.id === id)
     : { id: "", kundeId: vorbelegterKundeId || "", titel: "", beschreibung: "", status: "anfrage",
-        termin: "", einsatzOrt: "", zielOrt: "", positionen: [], material: "", notizen: "", angebotNr: "", rechnungNr: "" };
+        termin: "", einsatzOrt: "", zielOrt: "", positionen: [], zeiten: [], material: "", notizen: "", angebotNr: "", rechnungNr: "" };
   if (!a) return;
   bearbeitungsPositionen = JSON.parse(JSON.stringify(a.positionen || []));
   if (bearbeitungsPositionen.length === 0) bearbeitungsPositionen.push({ bezeichnung: "", menge: 1, einheit: "Std.", preis: "" });
+  bearbeitungsZeiten = JSON.parse(JSON.stringify(a.zeiten || []));
 
   dialogOeffnen(`
   <div class="dialog-kopf">
@@ -810,7 +857,16 @@ function auftragBearbeiten(id, vorbelegterKundeId) {
     <button class="sekundaer klein" onclick="positionHinzufuegen()">+ Position</button>
     <div class="summenblock" id="a-summen"></div>
 
-    <div class="feldpaar">
+    <div class="zeile" style="justify-content:space-between;margin-top:12px">
+      <label style="margin:0">⏱️ Stundenzettel</label>
+      <span>
+        <button class="sekundaer klein" id="a-stoppuhr" onclick="stoppuhrKlick()"></button>
+        <button class="sekundaer klein" onclick="zeitHinzufuegen()">+ Zeit von Hand</button>
+      </span>
+    </div>
+    <div id="a-zeiten"></div>
+
+    <div class="feldpaar" style="margin-top:12px">
       <div><label>Material / Einkaufsliste</label><textarea id="a-material">${esc(a.material)}</textarea></div>
       <div><label>Interne Notizen</label><textarea id="a-notizen">${esc(a.notizen)}</textarea></div>
     </div>
@@ -826,12 +882,13 @@ function auftragBearbeiten(id, vorbelegterKundeId) {
   <div class="dialog-fuss">
     ${id ? `<button class="gefahr klein" onclick="auftragLoeschen('${id}')">Löschen</button>` : "<span></span>"}
     <div class="rechtsgruppe">
-      ${id ? `<button class="sekundaer" onclick="dokumentDrucken('${id}','angebot')">Angebot drucken</button>
-              <button class="sekundaer" onclick="dokumentDrucken('${id}','rechnung')">Rechnung drucken</button>` : ""}
+      ${id ? `<button class="sekundaer" onclick="dokumentAusgeben('${id}','angebot')">📄 Angebot</button>
+              <button class="sekundaer" onclick="dokumentAusgeben('${id}','rechnung')">📄 Rechnung</button>` : ""}
       <button class="primaer" onclick="auftragSpeichern('${id || ""}')">Speichern</button>
     </div>
   </div>`);
   positionenRendern();
+  zeitenRendern();
   if (id) fotosRendern(a);
   document.getElementById("a-titel").focus();
 }
@@ -899,8 +956,11 @@ function auftragSpeichern(id) {
     material: document.getElementById("a-material").value,
     notizen: document.getElementById("a-notizen").value,
     positionen: bearbeitungsPositionen.filter((p) => p.bezeichnung.trim() !== ""),
+    zeiten: bearbeitungsZeiten.filter((z) => z.datum),
     geaendertAm: new Date().toISOString(),
   };
+  const vorher = id ? daten.auftraege.find((x) => x.id === id) : null;
+  bezahltAmPflegen(werte, vorher);
   if (id) Object.assign(daten.auftraege.find((x) => x.id === id), werte);
   else daten.auftraege.push(Object.assign({ id: uid(), angelegtAm: heuteISO(), angebotNr: "", rechnungNr: "" }, werte));
   speichern();
@@ -919,6 +979,398 @@ function auftragLoeschen(id) {
   speichern();
   dialogSchliessen();
   render();
+}
+
+/* =========================================================
+   Stundenzettel (Arbeitszeiten je Auftrag)
+   ========================================================= */
+function zeitDauerStunden(z) {
+  if (!z.von || !z.bis) return 0;
+  const [vh, vm] = z.von.split(":").map(Number);
+  const [bh, bm] = z.bis.split(":").map(Number);
+  let minuten = (bh * 60 + bm) - (vh * 60 + vm);
+  if (minuten < 0) minuten += 24 * 60; // über Mitternacht
+  return minuten / 60;
+}
+
+function zeitenSummeStunden() {
+  return bearbeitungsZeiten.reduce((s, z) => s + zeitDauerStunden(z), 0);
+}
+
+function zeitenRendern() {
+  const ziel = document.getElementById("a-zeiten");
+  if (!ziel) return;
+  ziel.innerHTML = bearbeitungsZeiten.map((z, i) => {
+    const dauer = zeitDauerStunden(z);
+    return `
+    <div class="zeitzeile">
+      <input class="z-datum" type="date" value="${esc(z.datum)}" onchange="zeitAendern(${i},'datum',this.value)">
+      <input class="z-zeit" type="time" value="${esc(z.von)}" onchange="zeitAendern(${i},'von',this.value)">
+      <span>–</span>
+      <input class="z-zeit" type="time" value="${esc(z.bis)}" onchange="zeitAendern(${i},'bis',this.value)">
+      <span class="z-dauer">${dauer ? dauer.toFixed(2).replace(".", ",") + " Std." : "–"}</span>
+      <button class="pos-loeschen" title="Zeit entfernen" onclick="zeitEntfernen(${i})">🗑</button>
+    </div>`;
+  }).join("");
+  const summe = zeitenSummeStunden();
+  if (bearbeitungsZeiten.length) {
+    ziel.innerHTML += `<div class="zeit-summe">Summe: <strong>${summe.toFixed(2).replace(".", ",")} Std.</strong>
+      ${daten.einstellungen.stundensatz ? "· als Position: " + euro(summe * daten.einstellungen.stundensatz) : ""}
+      <button class="sekundaer klein" onclick="zeitenAlsPosition()">→ als Position übernehmen</button></div>`;
+  }
+  const uhr = document.getElementById("a-stoppuhr");
+  if (uhr) {
+    if (stoppuhrStart) {
+      const min = Math.floor((Date.now() - stoppuhrStart) / 60000);
+      uhr.textContent = "⏹ Stoppen (" + Math.floor(min / 60) + ":" + String(min % 60).padStart(2, "0") + ")";
+      uhr.classList.add("stoppuhr-laeuft");
+    } else {
+      uhr.textContent = "▶ Stoppuhr";
+      uhr.classList.remove("stoppuhr-laeuft");
+    }
+  }
+}
+
+function hhmm(d) { return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); }
+
+function zeitHinzufuegen() {
+  const jetzt = new Date();
+  bearbeitungsZeiten.push({ datum: heuteISO(), von: hhmm(jetzt), bis: hhmm(jetzt) });
+  zeitenRendern();
+}
+
+function zeitAendern(i, feld, wert) {
+  bearbeitungsZeiten[i][feld] = wert;
+  zeitenRendern();
+}
+
+function zeitEntfernen(i) {
+  bearbeitungsZeiten.splice(i, 1);
+  zeitenRendern();
+}
+
+function stoppuhrKlick() {
+  if (stoppuhrStart) {
+    const start = new Date(stoppuhrStart);
+    const ende = new Date();
+    bearbeitungsZeiten.push({ datum: heuteISO(), von: hhmm(start), bis: hhmm(ende) });
+    stoppuhrStart = null;
+    clearInterval(stoppuhrTimer); stoppuhrTimer = null;
+  } else {
+    stoppuhrStart = Date.now();
+    stoppuhrTimer = setInterval(() => { const u = document.getElementById("a-stoppuhr"); if (u) zeitenRendern(); else { clearInterval(stoppuhrTimer); stoppuhrTimer = null; } }, 30000);
+  }
+  zeitenRendern();
+}
+
+function zeitenAlsPosition() {
+  const summe = zeitenSummeStunden();
+  if (!summe) { alert("Noch keine Zeiten mit Dauer erfasst."); return; }
+  const stundenGerundet = Math.round(summe * 100) / 100;
+  if (bearbeitungsPositionen.length === 1 && !bearbeitungsPositionen[0].bezeichnung.trim()) bearbeitungsPositionen = [];
+  bearbeitungsPositionen.push({ bezeichnung: "Arbeitszeit", menge: stundenGerundet, einheit: "Std.", preis: daten.einstellungen.stundensatz || "" });
+  positionenRendern();
+  alert("Arbeitszeit (" + stundenGerundet.toFixed(2).replace(".", ",") + " Std.) als Position übernommen.");
+}
+
+// Beim Wechsel auf „Bezahlt“ das Bezahldatum setzen (für die Umsatzübersicht),
+// beim Zurücknehmen wieder entfernen
+function bezahltAmPflegen(werte, vorher) {
+  if (werte.status === "bezahlt") {
+    werte.bezahltAm = (vorher && vorher.bezahltAm) || heuteISO();
+  } else {
+    werte.bezahltAm = "";
+  }
+}
+
+/* =========================================================
+   Terminkalender
+   ========================================================= */
+let kalenderMonat = null; // {jahr, monat} — null = aktueller Monat
+
+function renderTermine() {
+  const heute = new Date();
+  if (!kalenderMonat) kalenderMonat = { jahr: heute.getFullYear(), monat: heute.getMonth() };
+  const { jahr, monat } = kalenderMonat;
+  const monatsName = new Date(jahr, monat, 1).toLocaleDateString("de-DE", { month: "long", year: "numeric" });
+
+  // Termine dieses Monats nach Tag gruppieren
+  const proTag = {};
+  for (const a of daten.auftraege) {
+    if (!a.termin) continue;
+    const d = new Date(a.termin + "T00:00:00");
+    if (d.getFullYear() === jahr && d.getMonth() === monat) {
+      (proTag[d.getDate()] = proTag[d.getDate()] || []).push(a);
+    }
+  }
+
+  const ersterWochentag = (new Date(jahr, monat, 1).getDay() + 6) % 7; // Mo=0
+  const tageImMonat = new Date(jahr, monat + 1, 0).getDate();
+  const heuteISOstr = heuteISO();
+
+  let zellen = "";
+  for (let i = 0; i < ersterWochentag; i++) zellen += `<div class="kal-tag leer"></div>`;
+  for (let tag = 1; tag <= tageImMonat; tag++) {
+    const iso = jahr + "-" + String(monat + 1).padStart(2, "0") + "-" + String(tag).padStart(2, "0");
+    const eintraege = proTag[tag] || [];
+    zellen += `<div class="kal-tag ${iso === heuteISOstr ? "heute" : ""}">
+      <div class="tagzahl">${tag}</div>
+      ${eintraege.map((a) => `<button class="kal-punkt" title="${esc(a.titel)}" onclick="auftragBearbeiten('${a.id}')">${esc(a.titel)}</button>`).join("")}
+    </div>`;
+  }
+
+  const kommende = daten.auftraege
+    .filter((a) => a.termin && a.termin >= heuteISOstr && a.status !== "bezahlt")
+    .sort((x, y) => x.termin.localeCompare(y.termin)).slice(0, 8);
+
+  return `
+  <div class="karte">
+    <div class="kal-kopf">
+      <button class="sekundaer klein" onclick="kalenderBlaettern(-1)">‹</button>
+      <h2>${monatsName}</h2>
+      <button class="sekundaer klein" onclick="kalenderBlaettern(1)">›</button>
+    </div>
+    <div class="kal-gitter">
+      ${["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].map((w) => `<div class="kal-wtag">${w}</div>`).join("")}
+      ${zellen}
+    </div>
+    <div style="text-align:center;margin-top:10px"><button class="sekundaer klein" onclick="kalenderMonat=null;render()">Heute</button></div>
+  </div>
+  <div class="karte">
+    <h2>Als Nächstes</h2>
+    ${kommende.length ? kommende.map((a) => auftragskarte(a, true)).join("") : `<div class="leer">Keine anstehenden Termine.</div>`}
+  </div>`;
+}
+
+function kalenderBlaettern(richtung) {
+  if (!kalenderMonat) { const h = new Date(); kalenderMonat = { jahr: h.getFullYear(), monat: h.getMonth() }; }
+  let m = kalenderMonat.monat + richtung, j = kalenderMonat.jahr;
+  if (m < 0) { m = 11; j--; } else if (m > 11) { m = 0; j++; }
+  kalenderMonat = { jahr: j, monat: m };
+  render();
+}
+
+/* =========================================================
+   Umsatzübersicht
+   ========================================================= */
+function renderUmsatz() {
+  const jahr = (new Date()).getFullYear();
+  // Bezahlt = Einnahmen im Bezahlmonat; offen = fertige, noch nicht bezahlte Rechnungen
+  const monate = Array.from({ length: 12 }, () => ({ bezahlt: 0 }));
+  let offen = 0, jahrBezahlt = 0;
+  for (const a of daten.auftraege) {
+    const brutto = auftragBrutto(a);
+    if (a.status === "bezahlt" && a.bezahltAm) {
+      const d = new Date(a.bezahltAm + "T00:00:00");
+      if (d.getFullYear() === jahr) { monate[d.getMonth()].bezahlt += brutto; jahrBezahlt += brutto; }
+    } else if (a.status === "fertig") {
+      offen += brutto;
+    }
+  }
+  const maxWert = Math.max(1, ...monate.map((m) => m.bezahlt));
+  const monatsNamen = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+
+  return `
+  <div class="kacheln">
+    <div class="kachel"><div class="zahl">${euro(jahrBezahlt)}</div><div class="beschriftung">Bezahlt in ${jahr}</div></div>
+    <button class="kachel warn" onclick="filterUndZeige('fertig')"><div class="zahl">${euro(offen)}</div><div class="beschriftung">Offene Rechnungen</div></button>
+  </div>
+  <div class="karte">
+    <h2>Bezahlte Rechnungen ${jahr} nach Monat</h2>
+    <table class="umsatz-tabelle">
+      <thead><tr><th>Monat</th><th>Bezahlt</th><th style="width:40%"></th></tr></thead>
+      <tbody>
+        ${monate.map((m, i) => `<tr>
+          <td>${monatsNamen[i]}</td>
+          <td>${m.bezahlt ? euro(m.bezahlt) : "–"}</td>
+          <td><div class="umsatz-balken" style="width:${Math.round(m.bezahlt / maxWert * 100)}%"></div></td>
+        </tr>`).join("")}
+        <tr class="gesamt"><td>Gesamt</td><td>${euro(jahrBezahlt)}</td><td></td></tr>
+      </tbody>
+    </table>
+    <div class="hinweis">„Bezahlt“ zählt ab dem Tag, an dem du den Auftrag auf „Bezahlt“ gesetzt hast. Keine Steuerberatung — nur ein Überblick.</div>
+  </div>`;
+}
+
+/* =========================================================
+   Angebot / Rechnung: Daten sammeln, PDF erzeugen, teilen
+   ========================================================= */
+// Zeichen nach WinAnsi (Latin-1 + € auf 0x80) für die PDF-Schrift Helvetica
+function winAnsiBytes(text) {
+  const bytes = [];
+  for (const zeichen of String(text)) {
+    const cp = zeichen.codePointAt(0);
+    if (zeichen === "€") bytes.push(0x80);
+    else if (cp === 0x2013 || cp === 0x2014) bytes.push(0x2D); // – — → -
+    else if (cp === 0x201E || cp === 0x201C || cp === 0x201D) bytes.push(0x22); // „ " " → "
+    else if (cp <= 0xFF) bytes.push(cp);
+    else bytes.push(0x3F); // ?
+  }
+  return bytes;
+}
+
+function pdfEscape(text) {
+  return String(text).replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+}
+
+// Minimaler, gültiger PDF-Erzeuger (A4, Helvetica). zeilen: {text,x,y,size,bold}
+function pdfErzeugen(zeilen) {
+  let inhalt = "";
+  for (const z of zeilen) {
+    const font = z.bold ? "F2" : "F1";
+    inhalt += `BT /${font} ${z.size || 10} Tf ${z.x} ${z.y} Td (${pdfEscape(bytesZuLatin1(winAnsiBytes(z.text)))}) Tj ET\n`;
+  }
+  const objekte = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> /Contents 4 0 R >>",
+    `<< /Length ${inhalt.length} >>\nstream\n${inhalt}endstream`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets = [];
+  objekte.forEach((o, i) => {
+    offsets.push(pdf.length);
+    pdf += `${i + 1} 0 obj\n${o}\nendobj\n`;
+  });
+  const xrefStart = pdf.length;
+  pdf += `xref\n0 ${objekte.length + 1}\n0000000000 65535 f \n`;
+  for (const off of offsets) pdf += String(off).padStart(10, "0") + " 00000 n \n";
+  pdf += `trailer\n<< /Size ${objekte.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
+  // In Bytes umwandeln (Latin-1), damit Umlaute korrekt landen
+  const bytes = new Uint8Array(pdf.length);
+  for (let i = 0; i < pdf.length; i++) bytes[i] = pdf.charCodeAt(i) & 0xFF;
+  return new Blob([bytes], { type: "application/pdf" });
+}
+
+function bytesZuLatin1(bytes) { return bytes.map((b) => String.fromCharCode(b)).join(""); }
+
+// Sammelt die Zeilen für Angebot/Rechnung als PDF-Layout
+function dokumentPdfZeilen(a, art, nummer) {
+  const e = daten.einstellungen;
+  const k = kunde(a.kundeId);
+  const netto = auftragNetto(a);
+  const mwstBetrag = e.kleinunternehmer ? 0 : netto * (Number(e.mwst) || 0) / 100;
+  const brutto = netto + mwstBetrag;
+  const heute = new Date().toLocaleDateString("de-DE");
+  const z = [];
+  let y = 800;
+  const firmaName = e.firma || (BRANCHEN[e.branche] ? BRANCHEN[e.branche].name : "Betrieb");
+  // Kopf rechts: Firmendaten
+  [firmaName, e.inhaber ? "Inhaber: " + e.inhaber : "", e.strasse, e.plzOrt, e.telefon ? "Tel.: " + e.telefon : "", e.email]
+    .filter(Boolean).forEach((zeile, i) => z.push({ text: zeile, x: 350, y: 800 - i * 13, size: 9, bold: i === 0 }));
+  // Absender + Empfänger links
+  z.push({ text: [firmaName, e.strasse, e.plzOrt].filter(Boolean).join(" · "), x: 50, y: 800, size: 7 });
+  y = 770;
+  if (k) [k.name, k.strasse, k.plzOrt].filter(Boolean).forEach((zeile) => { z.push({ text: zeile, x: 50, y, size: 11 }); y -= 15; });
+  // Titel
+  y = 690;
+  z.push({ text: (art === "angebot" ? "Angebot" : "Rechnung") + " Nr. " + nummer, x: 50, y, size: 17, bold: true });
+  y -= 20;
+  z.push({ text: "Datum: " + heute + (a.titel ? "   ·   " + a.titel : ""), x: 50, y, size: 10 });
+  if (a.einsatzOrt) { y -= 14; z.push({ text: (a.zielOrt ? "Von: " + a.einsatzOrt + "   Nach: " + a.zielOrt : "Einsatzort: " + a.einsatzOrt), x: 50, y, size: 9 }); }
+  // Positionstabelle
+  y -= 30;
+  z.push({ text: "Pos.", x: 50, y, size: 9, bold: true });
+  z.push({ text: "Leistung", x: 85, y, size: 9, bold: true });
+  z.push({ text: "Menge", x: 330, y, size: 9, bold: true });
+  z.push({ text: "Einzel", x: 410, y, size: 9, bold: true });
+  z.push({ text: "Gesamt", x: 490, y, size: 9, bold: true });
+  y -= 6;
+  (a.positionen || []).forEach((p, i) => {
+    y -= 16;
+    const g = (Number(p.menge) || 0) * (Number(p.preis) || 0);
+    z.push({ text: String(i + 1), x: 50, y, size: 9 });
+    z.push({ text: (p.bezeichnung || "").slice(0, 48), x: 85, y, size: 9 });
+    z.push({ text: p.menge + " " + p.einheit, x: 330, y, size: 9 });
+    z.push({ text: euro(Number(p.preis) || 0), x: 410, y, size: 9 });
+    z.push({ text: euro(g), x: 490, y, size: 9 });
+  });
+  // Summen
+  y -= 30;
+  if (e.kleinunternehmer) {
+    z.push({ text: "Gesamtbetrag: " + euro(netto), x: 350, y, size: 12, bold: true });
+    y -= 14; z.push({ text: "Kein USt-Ausweis (§ 19 UStG)", x: 350, y, size: 8 });
+  } else {
+    z.push({ text: "Netto: " + euro(netto), x: 400, y, size: 10 });
+    y -= 14; z.push({ text: "zzgl. " + e.mwst + " % USt: " + euro(mwstBetrag), x: 400, y, size: 10 });
+    y -= 16; z.push({ text: "Gesamtbetrag: " + euro(brutto), x: 400, y, size: 12, bold: true });
+  }
+  // Schlusstext + Fußzeile
+  y -= 40;
+  const schluss = art === "angebot"
+    ? "Dieses Angebot ist 30 Tage gültig. Ich freue mich auf Ihren Auftrag!"
+    : "Bitte überweisen Sie den Betrag innerhalb von " + (e.zahlungsziel || 14) + " Tagen. Vielen Dank!";
+  z.push({ text: schluss, x: 50, y, size: 10 });
+  const fuss = [firmaName, e.steuernummer ? "Steuernummer: " + e.steuernummer : "", e.iban ? "IBAN: " + e.iban : ""].filter(Boolean).join("   ·   ");
+  z.push({ text: fuss, x: 50, y: 60, size: 8 });
+  return z;
+}
+
+// Vergibt (einmalig) die Dokumentnummer und liefert sie zurück
+function dokumentNummerSichern(a, art) {
+  const feld = art === "angebot" ? "angebotNr" : "rechnungNr";
+  if (!a[feld]) { a[feld] = neueDokumentNummer(); speichern(); }
+  return a[feld];
+}
+
+function dokumentAusgeben(id, art) {
+  auftragSpeichernStill(id);
+  const a = daten.auftraege.find((x) => x.id === id);
+  if (!a) return;
+  if (!a.positionen || a.positionen.length === 0) { alert("Bitte zuerst mindestens eine Position mit Leistung eintragen."); return; }
+  const nummer = dokumentNummerSichern(a, art);
+  const artName = art === "angebot" ? "Angebot" : "Rechnung";
+  const kannTeilen = typeof navigator !== "undefined" && navigator.canShare &&
+    navigator.canShare({ files: [new File([new Blob(["x"])], "t.pdf", { type: "application/pdf" })] });
+
+  dialog2.innerHTML = `
+  <div class="dialog-kopf">
+    <h2>${artName} Nr. ${esc(nummer)}</h2>
+    <button class="schliessen" onclick="dialog2.close()" aria-label="Schließen">×</button>
+  </div>
+  <div class="dialog-inhalt">
+    <p>Wie möchtest du das ${artName} ausgeben?</p>
+    <div class="zeile" style="flex-direction:column;align-items:stretch;gap:10px">
+      <button class="primaer" onclick="dokumentTeilen('${id}','${art}')">📲 Als PDF teilen (WhatsApp, E-Mail …)</button>
+      <button class="sekundaer" onclick="dokumentPdfHerunterladen('${id}','${art}')">💾 PDF herunterladen</button>
+      <button class="sekundaer" onclick="dialog2.close();dokumentDrucken('${id}','${art}')">🖨️ Drucken (Browser)</button>
+    </div>
+    ${kannTeilen ? "" : `<div class="hinweis">„Teilen“ öffnet auf dem Handy die App-Auswahl. Auf diesem Gerät steht es evtl. nicht zur Verfügung — dann PDF herunterladen und selbst anhängen.</div>`}
+  </div>`;
+  dialog2.showModal();
+}
+
+function dokumentPdfBlob(id, art) {
+  const a = daten.auftraege.find((x) => x.id === id);
+  const nummer = dokumentNummerSichern(a, art);
+  return { blob: pdfErzeugen(dokumentPdfZeilen(a, art, nummer)), name: (art === "angebot" ? "Angebot" : "Rechnung") + "-" + nummer + ".pdf" };
+}
+
+async function dokumentTeilen(id, art) {
+  const { blob, name } = dokumentPdfBlob(id, art);
+  const datei = new File([blob], name, { type: "application/pdf" });
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [datei] })) {
+      await navigator.share({ files: [datei], title: name });
+      dialog2.close();
+      return;
+    }
+  } catch (fehler) {
+    if (fehler && fehler.name === "AbortError") return; // Nutzer hat abgebrochen
+  }
+  dokumentPdfHerunterladen(id, art);
+}
+
+function dokumentPdfHerunterladen(id, art) {
+  const { blob, name } = dokumentPdfBlob(id, art);
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  dialog2.close();
 }
 
 /* =========================================================
@@ -1023,6 +1475,8 @@ function auftragSpeichernStill(id) {
   a.material = document.getElementById("a-material").value;
   a.notizen = document.getElementById("a-notizen").value;
   a.positionen = bearbeitungsPositionen.filter((p) => p.bezeichnung.trim() !== "");
+  a.zeiten = bearbeitungsZeiten.filter((z) => z.datum);
+  bezahltAmPflegen(a, a);
   a.geaendertAm = new Date().toISOString();
   speichern();
 }

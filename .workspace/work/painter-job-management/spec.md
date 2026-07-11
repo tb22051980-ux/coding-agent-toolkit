@@ -59,6 +59,19 @@ Gewerke sowie Transport & Umzug verallgemeinert (App liegt jetzt unter
   relative API), IN_APP (UA-Kennung „AuftragsApp“/app.local →
   serverBasis), Einzeldatei (file://, serverBasis optional).
 
+## Ausbaustufe 5 (Alltagsfunktionen)
+
+- Terminkalender (Monatsansicht + „Als Nächstes“), navigierbar.
+- Umsatzübersicht: bezahlt je Monat/Jahr + offene Rechnungen;
+  `bezahltAm` wird beim Statuswechsel auf „bezahlt“ gesetzt.
+- Stundenzettel je Auftrag (`zeiten[]`): Stoppuhr + manuell, Summe →
+  Position (Std. × Stundensatz).
+- PDF-Ausgabe: eigener dependency-freier PDF-Erzeuger (Helvetica,
+  WinAnsi, Umlaute + €), Teilen via Web Share API (Datei) mit
+  Download-Fallback; Browser-Druck bleibt erhalten.
+- Verifikation: smoke4.js (Kalender, Umsatz, Stundenzettel, bezahltAm,
+  PDF im Chromium-Viewer + Content-Stream-Parse auf Text/Umlaute/€).
+
 ## Entscheidungen
 
 - **Single-File-HTML + localStorage** statt Server-App: Zielnutzer hat

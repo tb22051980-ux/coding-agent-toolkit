@@ -101,9 +101,18 @@ arbeitet unterwegs normal weiter und speichert alles lokal.
 - **Notiz-Assistent:** Notizzeilen werden zu Positionen; Preise kommen
   aus der Notiz, der Preisliste oder dem Stundensatz. Zeilen ohne
   Menge/Preis (reine Beschreibung) bleiben unangetastet.
-- **Angebot & Rechnung** als Druck/PDF mit Firmenkopf, Kundenadresse,
-  Von-/Nach-Adressen, Positionstabelle, Summenblock und automatisch
-  fortlaufender, pro Auftrag stabiler Nummer (`2026-001`, …).
+- **Terminkalender:** Monatsansicht aller Auftragstermine plus Liste
+  „Als Nächstes“; Tippen auf einen Termin öffnet den Auftrag.
+- **Umsatzübersicht:** bezahlte Rechnungen je Monat (Jahressumme) und
+  offene Rechnungen auf einen Blick. „Bezahlt“ zählt ab dem Tag, an
+  dem der Auftrag auf „Bezahlt“ gesetzt wird.
+- **Stundenzettel je Auftrag:** Arbeitszeiten per Start/Stopp-Stoppuhr
+  oder von Hand erfassen; die Summe lässt sich mit einem Klick als
+  Position (Std. × Stundensatz) übernehmen.
+- **Angebot & Rechnung** als **PDF** (direkt per WhatsApp/E-Mail
+  teilen oder herunterladen) und als Browser-Druck — mit Firmenkopf,
+  Kundenadresse, Von-/Nach-Adressen, Positionstabelle, Summenblock und
+  automatisch fortlaufender, pro Auftrag stabiler Nummer (`2026-001`, …).
 - **Kleinunternehmer-Modus (§ 19 UStG)** umschaltbar; USt-Satz,
   Zahlungsziel und Stundensatz einstellbar.
 - **Kunden** mit Adresse, Kontakt, Notizen und allen Aufträgen.
