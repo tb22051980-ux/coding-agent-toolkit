@@ -42,6 +42,23 @@ Gewerke sowie Transport & Umzug verallgemeinert (App liegt jetzt unter
   Preis- und Preislisten-Erkennung; Preisliste + Stundensatz in den
   Einstellungen pflegbar).
 
+## Ausbaustufe 4 (echte Handy-Apps)
+
+- **Android:** echte APK (`android/`): WebView mit eingebetteter
+  index.html unter https://app.local; PC-API über konfigurierbare
+  `serverBasis` (Einstellungen), Server per CORS freigegeben.
+  Build ohne Gradle: build-apk.sh (javac + dx von Maven Central +
+  aapt/zipalign/apksigner aus Ubuntu-Paketen; android.jar-Stubs von
+  Sable/android-platforms) — dl.google.com ist im Proxy gesperrt.
+  CI-Job `android-apk` baut identisch; Debug-Keystore eingecheckt,
+  damit Updates installierbar bleiben.
+- **iOS:** ohne Apple-Entwicklerkonto + Mac nicht baubar (harte
+  Apple-Sperre) → Home-Bildschirm-Web-App bleibt der iPhone-Weg;
+  dem User transparent kommuniziert.
+- Betriebsarten der Oberfläche: SERVER_SELBST (vom PC geladen,
+  relative API), IN_APP (UA-Kennung „AuftragsApp“/app.local →
+  serverBasis), Einzeldatei (file://, serverBasis optional).
+
 ## Entscheidungen
 
 - **Single-File-HTML + localStorage** statt Server-App: Zielnutzer hat

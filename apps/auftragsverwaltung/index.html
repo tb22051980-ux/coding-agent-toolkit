@@ -351,7 +351,25 @@ function speichern() {
    Ablage: Änderungen werden dorthin geschrieben; ist er gerade nicht
    erreichbar (unterwegs beim Kunden), bleibt alles lokal gespeichert
    und wird nachgereicht, sobald das Heimnetz wieder da ist.          */
-const SERVER_MOEGLICH = location.protocol === "http:" || location.protocol === "https:";
+// Drei Betriebsarten:
+//  - SERVER_SELBST: Seite kommt direkt vom PC-Programm → API relativ ansprechen
+//  - IN_APP: Seite läuft in der Android-App (eingebaute Oberfläche) → API über
+//    die in den Einstellungen hinterlegte PC-Adresse (serverBasis)
+//  - sonst Einzeldatei (file://) → Sync optional über serverBasis
+const IN_APP = navigator.userAgent.includes("AuftragsApp") || location.hostname === "app.local";
+const SERVER_SELBST = !IN_APP && (location.protocol === "http:" || location.protocol === "https:");
+const SERVER_BASIS_SCHLUESSEL = SPEICHER_SCHLUESSEL + ":server";
+let serverBasis = (localStorage.getItem(SERVER_BASIS_SCHLUESSEL) || "").replace(/\/+$/, "");
+
+function serverMoeglich() { return SERVER_SELBST || !!serverBasis; }
+function apiUrl(pfad) { return SERVER_SELBST ? pfad : serverBasis + "/" + pfad; }
+
+// fetch mit Zeitlimit: eine hängende Verbindung darf den Abgleich nie
+// dauerhaft blockieren (z. B. Firewall verschluckt Pakete kommentarlos)
+function fetchMitLimit(url, optionen = {}, ms = 10000) {
+  return fetch(url, Object.assign({ signal: AbortSignal.timeout(ms) }, optionen));
+}
+
 const SYNC_FLAG = SPEICHER_SCHLUESSEL + ":ausstehend";
 let serverAktiv = false;
 let syncAusstehend = localStorage.getItem(SYNC_FLAG) === "1";
@@ -361,7 +379,8 @@ let syncLaeuft = false;
 function syncAnzeige() {
   const el = document.getElementById("sync-badge");
   if (!el) return;
-  if (!SERVER_MOEGLICH) { el.textContent = ""; el.className = "sync-badge"; el.style.display = "none"; return; }
+  if (IN_APP && !serverBasis) { el.style.display = ""; el.textContent = "PC-Adresse in den Einstellungen eintragen"; el.className = "sync-badge gelb"; return; }
+  if (!serverMoeglich()) { el.textContent = ""; el.className = "sync-badge"; el.style.display = "none"; return; }
   el.style.display = "";
   if (serverAktiv && !syncAusstehend) { el.textContent = "✓ Mit PC synchron"; el.className = "sync-badge gruen"; }
   else if (syncAusstehend) { el.textContent = "⏳ Wird übertragen, sobald der PC erreichbar ist"; el.className = "sync-badge gelb"; }
@@ -369,7 +388,7 @@ function syncAnzeige() {
 }
 
 function planeSync() {
-  if (!SERVER_MOEGLICH) return;
+  if (!serverMoeglich()) return;
   syncAusstehend = true;
   localStorage.setItem(SYNC_FLAG, "1");
   syncAnzeige();
@@ -378,10 +397,10 @@ function planeSync() {
 }
 
 async function syncJetzt() {
-  if (!SERVER_MOEGLICH || syncLaeuft) return;
+  if (!serverMoeglich() || syncLaeuft) return;
   syncLaeuft = true;
   try {
-    const antwort = await fetch("api/daten", {
+    const antwort = await fetchMitLimit(apiUrl("api/daten"), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(daten),
@@ -402,10 +421,10 @@ async function syncJetzt() {
 // Regelmäßiger Abgleich: eigene Änderungen nachschieben bzw. neuere
 // Stände vom PC übernehmen (z. B. wenn dort weitergearbeitet wurde).
 async function syncAbgleich() {
-  if (!SERVER_MOEGLICH || syncLaeuft) return;
+  if (!serverMoeglich() || syncLaeuft) return;
   if (syncAusstehend) { syncJetzt(); return; }
   try {
-    const antwort = await fetch("api/daten", { cache: "no-store" });
+    const antwort = await fetchMitLimit(apiUrl("api/daten"), { cache: "no-store" });
     if (!antwort.ok) throw new Error("Serverantwort " + antwort.status);
     serverAktiv = true;
     const serverDaten = await antwort.json();
@@ -424,16 +443,18 @@ async function syncAbgleich() {
 }
 
 async function syncStart() {
-  if (!SERVER_MOEGLICH) { syncAnzeige(); return; }
+  // Abgleich-Takt immer einrichten — die PC-Adresse kann auch erst
+  // später in den Einstellungen eingetragen werden
+  setInterval(syncAbgleich, 20000);
+  if (!serverMoeglich()) { syncAnzeige(); return; }
   await syncAbgleich();
   // Erststart am Server: lokale Daten hochladen, falls dort noch nichts liegt
   if (serverAktiv && (daten.kunden.length || daten.auftraege.length) && !syncAusstehend) {
     try {
-      const antwort = await fetch("api/daten", { cache: "no-store" });
+      const antwort = await fetchMitLimit(apiUrl("api/daten"), { cache: "no-store" });
       if (antwort.ok && (await antwort.json()) === null) planeSync();
     } catch { /* nächster Abgleich versucht es erneut */ }
   }
-  setInterval(syncAbgleich, 20000);
 }
 
 function uid() {
@@ -892,7 +913,7 @@ function auftragLoeschen(id) {
   const a = daten.auftraege.find((x) => x.id === id);
   for (const f of (a && a.fotos) || []) {
     fotoLokalLoeschen(f.id).catch(() => {});
-    if (SERVER_MOEGLICH) fetch("api/fotos/" + f.id, { method: "DELETE" }).catch(() => {});
+    if (serverMoeglich()) fetch(apiUrl("api/fotos/" + f.id), { method: "DELETE" }).catch(() => {});
   }
   daten.auftraege = daten.auftraege.filter((x) => x.id !== id);
   speichern();
@@ -1081,7 +1102,7 @@ async function fotoEntfernen(auftragId, fotoId) {
   a.fotos = (a.fotos || []).filter((f) => f.id !== fotoId);
   speichern();
   fotoLokalLoeschen(fotoId).catch(() => {});
-  if (SERVER_MOEGLICH) fetch("api/fotos/" + fotoId, { method: "DELETE" }).catch(() => {});
+  if (serverMoeglich()) fetch(apiUrl("api/fotos/" + fotoId), { method: "DELETE" }).catch(() => {});
   fotosRendern(a);
 }
 
@@ -1099,9 +1120,9 @@ async function fotosRendern(a) {
     if (!bild) continue;
     try {
       const lokal = await fotoLokalHolen(f.id);
-      bild.src = lokal ? URL.createObjectURL(lokal.blob) : (SERVER_MOEGLICH ? "api/fotos/" + f.id : "");
+      bild.src = lokal ? URL.createObjectURL(lokal.blob) : (serverMoeglich() ? apiUrl("api/fotos/" + f.id) : "");
     } catch {
-      if (SERVER_MOEGLICH) bild.src = "api/fotos/" + f.id;
+      if (serverMoeglich()) bild.src = apiUrl("api/fotos/" + f.id);
     }
     bild.onclick = () => {
       document.getElementById("lightbox-bild").src = bild.src;
@@ -1113,7 +1134,7 @@ async function fotosRendern(a) {
 // Noch nicht übertragene Fotos zum PC hochladen (läuft im Hintergrund)
 let fotoSyncLaeuft = false;
 async function fotoSync() {
-  if (!SERVER_MOEGLICH || !serverAktiv || fotoSyncLaeuft) return;
+  if (!serverMoeglich() || !serverAktiv || fotoSyncLaeuft) return;
   fotoSyncLaeuft = true;
   try {
     const alle = await fotoAlleLokal();
@@ -1124,7 +1145,7 @@ async function fotoSync() {
         leser.onerror = () => ablehnen(leser.error);
         leser.readAsDataURL(eintrag.blob);
       });
-      const antwort = await fetch("api/fotos", {
+      const antwort = await fetchMitLimit(apiUrl("api/fotos"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: eintrag.id, datenUrl }),
@@ -1292,6 +1313,10 @@ function renderEinstellungen() {
       <input type="checkbox" id="e-kleinunternehmer" style="width:auto" ${e.kleinunternehmer ? "checked" : ""}>
       Kleinunternehmer nach § 19 UStG (keine Umsatzsteuer ausweisen)
     </label>
+    ${SERVER_SELBST ? "" : `
+    <label>🔗 PC-Adresse für die Synchronisierung <span style="font-weight:400">(steht im schwarzen Fenster des PC-Programms)</span></label>
+    <input id="e-serverbasis" value="${esc(serverBasis)}" placeholder="z. B. http://192.168.1.20:8722" inputmode="url" autocapitalize="off">
+    <div class="hinweis">Leer lassen, wenn kein PC-Programm genutzt wird — die Daten bleiben dann nur auf diesem Gerät.</div>`}
     <div style="margin-top:14px"><button class="primaer" onclick="einstellungenSpeichern()">Speichern</button></div>
   </div>
 
@@ -1346,8 +1371,18 @@ function einstellungenSpeichern() {
       return { begriff: teile[0], preis: zahlDe(teile[1]) || 0, einheit: teile[2] || "m²" };
     })
     .filter(Boolean);
+  const basisFeld = document.getElementById("e-serverbasis");
+  if (basisFeld) {
+    let basis = basisFeld.value.trim().replace(/\/+$/, "");
+    if (basis && !/^https?:\/\//i.test(basis)) basis = "http://" + basis;
+    serverBasis = basis;
+    localStorage.setItem(SERVER_BASIS_SCHLUESSEL, basis);
+    serverAktiv = false;
+    if (basis) syncAbgleich();
+  }
   speichern();
   render();
+  syncAnzeige();
   alert("Einstellungen gespeichert.");
 }
 
@@ -1448,7 +1483,7 @@ function beispieldatenLaden() {
 // Manifest und Icons gibt es nur, wenn die App vom PC-Programm kommt —
 // dann wird sie auf Android („App installieren“) und iPhone
 // („Zum Home-Bildschirm“) zur Vollbild-App mit eigenem Symbol.
-if (SERVER_MOEGLICH) {
+if (SERVER_SELBST) {
   for (const [rel, href] of [["manifest", "manifest.webmanifest"], ["apple-touch-icon", "icon-180.png"], ["icon", "icon-180.png"]]) {
     const link = document.createElement("link");
     link.rel = rel;

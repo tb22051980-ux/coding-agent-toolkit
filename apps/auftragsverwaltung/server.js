@@ -107,6 +107,16 @@ const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, "http://x");
     const pfad = url.pathname;
 
+    // CORS: erlaubt der Handy-App (eingebaute Oberfläche, anderer Ursprung)
+    // den Zugriff auf die API im Heimnetz
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, PUT, POST, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    // Chrome „Private Network Access“: App-Oberfläche (öffentlicher Ursprung)
+    // darf auf diese Heimnetz-Adresse zugreifen
+    res.setHeader("Access-Control-Allow-Private-Network", "true");
+    if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
+
     // ---- App ausliefern ----
     if (req.method === "GET" && (pfad === "/" || pfad === "/index.html")) {
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });

@@ -60,11 +60,38 @@ jobs:
           path: apps/auftragsverwaltung/Auftragsverwaltung.exe
 
       - name: Release anlegen (nur bei Tag auftragsverwaltung-v*)
+        id: release-exe
         if: startsWith(github.ref, 'refs/tags/auftragsverwaltung-v')
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "${{ github.ref_name }}"
-          $notizen = "Auftragsverwaltung fuer Handwerk, Transport und Umzug - PC-Programm fuer Windows.`nHerunterladen, in einen eigenen Ordner legen (z. B. C:\MeinBetrieb), doppelklicken.`nDer Browser oeffnet sich automatisch; die Handy-Adresse steht im schwarzen Fenster."
+          $notizen = "Auftragsverwaltung fuer Handwerk, Transport und Umzug.`nWindows: Auftragsverwaltung.exe herunterladen, in einen eigenen Ordner legen (z. B. C:\MeinBetrieb), doppelklicken.`nAndroid: Auftragsverwaltung.apk auf dem Handy installieren (Installation aus unbekannten Quellen erlauben)."
           gh release create $tag Auftragsverwaltung.exe --title $tag --notes $notizen
+
+  android-apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/auftragsverwaltung/android
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Werkzeuge installieren
+        run: sudo apt-get update -q && sudo apt-get install -y -q aapt zipalign apksigner
+
+      - name: APK bauen und signieren
+        run: ./build-apk.sh
+
+      - name: APK als Artefakt bereitstellen
+        uses: actions/upload-artifact@v4
+        with:
+          name: Auftragsverwaltung-Android
+          path: apps/auftragsverwaltung/android/Auftragsverwaltung.apk
+
+      - name: APK an Release anhängen (nur bei Tag auftragsverwaltung-v*)
+        if: startsWith(github.ref, 'refs/tags/auftragsverwaltung-v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.ref_name }}" Auftragsverwaltung.apk --clobber || (sleep 30 && gh release upload "${{ github.ref_name }}" Auftragsverwaltung.apk --clobber)

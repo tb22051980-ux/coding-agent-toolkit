@@ -28,14 +28,25 @@ Es gibt zwei Betriebsarten:
    automatisch; im schwarzen Fenster stehen zwei Adressen:
    - **Am PC öffnen:** `http://localhost:8722`
    - **Am Handy öffnen:** `http://192.168.…:8722` (gleiches WLAN nötig)
-3. Die Handy-Adresse einmal am Handy öffnen und als App ablegen —
-   funktioniert mit **Android und iPhone**:
-   - **Android (Chrome):** Adresse öffnen → Menü ⋮ → **„App
-     installieren“** (bzw. „Zum Startbildschirm hinzufügen“). Die App
-     bekommt ein eigenes Symbol und startet im Vollbild.
+3. Handy einrichten — je nach System:
+   - **Android — echte App (empfohlen):** `Auftragsverwaltung.apk`
+     aufs Handy übertragen (z. B. per USB, Messenger an sich selbst
+     oder Download) und antippen. Android fragt einmalig, ob die
+     Installation aus dieser Quelle erlaubt werden soll → zulassen.
+     Danach in der App unter **Einstellungen → PC-Adresse** die
+     Adresse aus dem schwarzen Fenster eintragen (z. B.
+     `http://192.168.1.20:8722`) und speichern. Die App startet ab
+     dann **auch unterwegs ohne Heimnetz** sofort und gleicht
+     automatisch ab, sobald der PC erreichbar ist.
+   - **Android — ohne Installation:** Adresse in Chrome öffnen →
+     Menü ⋮ → „App installieren“ (Web-App, braucht das Heimnetz zum
+     Laden).
    - **iPhone/iPad (Safari):** Adresse in **Safari** öffnen →
      **Teilen-Knopf** (Viereck mit Pfeil) → **„Zum Home-Bildschirm“**.
-     Wichtig: Auf dem iPhone geht das nur mit Safari, nicht mit Chrome.
+     Auf dem iPhone geht das nur mit Safari. Eine „echte“ iOS-App
+     ließe sich nur mit Apple-Entwicklerkonto (99 €/Jahr) und Mac
+     erstellen — der Home-Bildschirm-Weg ist Apples offizieller Weg
+     für Betriebs-Apps ohne App Store.
 4. In den **Einstellungen** die eigene **Branche** wählen und
    „Preisliste mit Branchen-Vorlage füllen“ klicken — dann die Preise
    an den eigenen Betrieb anpassen.
@@ -124,5 +135,16 @@ arbeitet unterwegs normal weiter und speichert alles lokal.
   eingebetteter `index.html`, siehe `sea-config.json`); gebaut vom
   Workflow `.github/workflows/auftragsverwaltung-exe.yml`. Ein
   Release entsteht beim Taggen mit `auftragsverwaltung-v*`.
+- `android/` — echte Android-App (`Auftragsverwaltung.apk`): ein
+  WebView lädt die eingebettete `index.html` unter `https://app.local`
+  (eigener sicherer Ursprung → localStorage/IndexedDB stabil) und
+  spricht die PC-API über die in den Einstellungen hinterlegte
+  Adresse an (der PC-Server erlaubt das per CORS). Gebaut ohne
+  Gradle/Android Studio: `android/build-apk.sh` (aapt, dx, zipalign,
+  apksigner); derselbe Weg läuft im CI-Job `android-apk`. Signiert
+  mit dem eingecheckten Debug-Schlüssel (`android/debug.keystore`,
+  Passwort „android“) — nur für Eigenvertrieb gedacht; Updates müssen
+  mit demselben Schlüssel signiert sein, sonst verlangt Android eine
+  Neuinstallation.
 - Abgleich: letzter Stand gewinnt (Zeitstempel `stand`); ausstehende
   Änderungen und Fotos werden alle 20 s nachgereicht.
