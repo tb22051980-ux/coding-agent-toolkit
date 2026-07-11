@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * Malermeister-Auftragsverwaltung — PC-Programm (Heimnetz-Server)
+ * Auftragsverwaltung für Handwerk, Transport & Umzug — PC-Programm (Heimnetz-Server)
  *
  * Start:   node server.js        (Doppelklick auf start-windows.bat geht auch)
  * Danach:  am PC     http://localhost:8722
@@ -30,12 +30,12 @@ function indexHtmlLaden() {
 }
 
 // Datenablage: neben dem Programm, wenn dort geschrieben werden darf
-// (z. B. C:\Malerbetrieb); sonst im Benutzerprofil (z. B. bei
+// (z. B. C:\MeinBetrieb); sonst im Benutzerprofil (z. B. bei
 // Installation unter C:\Programme).
 function datenBasisWaehlen() {
   const kandidaten = [seaModul ? path.dirname(process.execPath) : __dirname];
-  const profil = process.env.LOCALAPPDATA || path.join(os.homedir(), ".malermeister");
-  kandidaten.push(path.join(profil, "MalermeisterAuftragsverwaltung"));
+  const profil = process.env.LOCALAPPDATA || path.join(os.homedir(), ".auftragsverwaltung");
+  kandidaten.push(path.join(profil, "Auftragsverwaltung"));
   for (const basis of kandidaten) {
     try {
       const ordner = path.join(basis, "daten");
@@ -161,7 +161,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log("");
-  console.log("🎨 Malermeister-Auftragsverwaltung läuft.");
+  console.log("🛠️ Auftragsverwaltung läuft (Handwerk, Transport & Umzug).");
   console.log("   Daten liegen in: " + DATEN_ORDNER);
   console.log("");
   console.log("   Am PC öffnen:    http://localhost:" + PORT);

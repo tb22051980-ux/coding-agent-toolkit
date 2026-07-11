@@ -2,9 +2,24 @@
 
 ## Ziel
 
-Ein selbstständiger Malermeister (Ein-Mann-Betrieb, kein IT-Hintergrund)
-braucht eine Software, die ihm die Auftragsverwaltung erleichtert:
-Anfragen, Angebote, Termine, laufende Arbeiten, Rechnungen, Kunden.
+Ein Selbstständiger mit Ein-Mann-Betrieb (kein IT-Hintergrund) braucht
+eine Software, die ihm die Auftragsverwaltung erleichtert: Anfragen,
+Angebote, Termine, laufende Arbeiten, Rechnungen, Kunden. Ursprünglich
+für einen Malermeister gebaut; in Ausbaustufe 3 auf alle Handwerks-
+Gewerke sowie Transport & Umzug verallgemeinert (App liegt jetzt unter
+`apps/auftragsverwaltung/`, Exe heißt `Auftragsverwaltung.exe`).
+
+## Ausbaustufe 3 (Verallgemeinerung)
+
+- Branchenwahl mit Preislisten-Vorlagen (Maler, Elektro, Sanitär/
+  Heizung, Garten, Transport & Umzug, Allgemein), frei anpassbar.
+- Neue Einheiten in Positionen und Notiz-Parser: m³, km, kg, Karton,
+  Fahrt, Tag; strengere Preiserkennung (nur „à …“ oder Betrag mit €).
+- Einsatz-/Ladeadresse und Zieladresse je Auftrag, auch auf dem
+  Angebots-/Rechnungsdruck („Von … Nach …“).
+- Beispieldaten enthalten einen Umzugsauftrag; Texte neutralisiert.
+- Speicher-Schlüssel (localStorage/IndexedDB) bewusst unverändert,
+  damit bestehende Daten den Namenswechsel überleben.
 
 ## Done heißt
 

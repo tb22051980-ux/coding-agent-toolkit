@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Malermeister – Auftragsverwaltung</title>
+<title>Auftragsverwaltung – Handwerk, Transport &amp; Umzug</title>
 <style>
   :root {
     --blau: #1d5c8f;
@@ -218,7 +218,7 @@
 <body>
 
 <header>
-  <h1>🎨 Auftragsverwaltung <small id="kopf-firma"></small><span class="sync-badge" id="sync-badge"></span></h1>
+  <h1>🛠️ Auftragsverwaltung <small id="kopf-firma"></small><span class="sync-badge" id="sync-badge"></span></h1>
   <nav id="hauptnav"></nav>
 </header>
 
@@ -245,7 +245,59 @@ const STATUS = [
   { id: "fertig",     name: "Fertig – Rechnung offen" },
   { id: "bezahlt",    name: "Bezahlt" },
 ];
-const EINHEITEN = ["m²", "Std.", "Stk.", "lfm", "pausch.", "Liter"];
+const EINHEITEN = ["m²", "m³", "lfm", "Std.", "Stk.", "km", "kg", "Karton", "Fahrt", "Tag", "Liter", "pausch."];
+
+// Branchen-Vorlagen: füllen auf Wunsch die Preisliste in den Einstellungen
+const BRANCHEN = {
+  maler: { name: "Maler / Lackierer", preisliste: [
+    { begriff: "streichen", einheit: "m²", preis: 12.5 },
+    { begriff: "spachteln", einheit: "m²", preis: 8 },
+    { begriff: "grundieren", einheit: "m²", preis: 4.5 },
+    { begriff: "tapezieren", einheit: "m²", preis: 14 },
+    { begriff: "lackieren", einheit: "lfm", preis: 18 },
+    { begriff: "abkleben", einheit: "pausch.", preis: 90 },
+  ]},
+  elektro: { name: "Elektro", preisliste: [
+    { begriff: "arbeitsstunde", einheit: "Std.", preis: 65 },
+    { begriff: "anfahrt", einheit: "pausch.", preis: 45 },
+    { begriff: "steckdose", einheit: "Stk.", preis: 35 },
+    { begriff: "schalter", einheit: "Stk.", preis: 35 },
+    { begriff: "leuchte", einheit: "Stk.", preis: 45 },
+    { begriff: "leitung", einheit: "lfm", preis: 12 },
+  ]},
+  sanitaer: { name: "Sanitär / Heizung", preisliste: [
+    { begriff: "arbeitsstunde", einheit: "Std.", preis: 75 },
+    { begriff: "anfahrt", einheit: "pausch.", preis: 49 },
+    { begriff: "wc", einheit: "Stk.", preis: 180 },
+    { begriff: "waschbecken", einheit: "Stk.", preis: 150 },
+    { begriff: "armatur", einheit: "Stk.", preis: 95 },
+    { begriff: "rohr", einheit: "lfm", preis: 28 },
+  ]},
+  garten: { name: "Garten / Landschaft", preisliste: [
+    { begriff: "arbeitsstunde", einheit: "Std.", preis: 55 },
+    { begriff: "anfahrt", einheit: "pausch.", preis: 35 },
+    { begriff: "hecke", einheit: "lfm", preis: 8 },
+    { begriff: "rasen", einheit: "m²", preis: 0.5 },
+    { begriff: "entsorgung", einheit: "m³", preis: 45 },
+  ]},
+  transport: { name: "Transport & Umzug", preisliste: [
+    { begriff: "helfer", einheit: "Std.", preis: 38 },
+    { begriff: "träger", einheit: "Std.", preis: 38 },
+    { begriff: "fahrer", einheit: "Std.", preis: 45 },
+    { begriff: "lkw", einheit: "Tag", preis: 280 },
+    { begriff: "transporter", einheit: "Tag", preis: 120 },
+    { begriff: "km", einheit: "km", preis: 1.2 },
+    { begriff: "karton", einheit: "Karton", preis: 2.5 },
+    { begriff: "halteverbot", einheit: "pausch.", preis: 120 },
+    { begriff: "klavier", einheit: "pausch.", preis: 250 },
+    { begriff: "möbel", einheit: "Std.", preis: 40 },
+  ]},
+  allgemein: { name: "Allgemein / Sonstiges", preisliste: [
+    { begriff: "arbeitsstunde", einheit: "Std.", preis: 60 },
+    { begriff: "anfahrt", einheit: "pausch.", preis: 40 },
+    { begriff: "entsorgung", einheit: "m³", preis: 45 },
+  ]},
+};
 
 let daten = ladeDaten();
 
@@ -255,13 +307,11 @@ function leererZustand() {
       firma: "", inhaber: "", strasse: "", plzOrt: "", telefon: "", email: "",
       iban: "", steuernummer: "", mwst: 19, kleinunternehmer: false,
       stundensatz: 55, zahlungsziel: 14, naechsteNummer: 1,
+      branche: "allgemein",
       preisliste: [
-        { begriff: "streichen", einheit: "m²", preis: 12.5 },
-        { begriff: "spachteln", einheit: "m²", preis: 8 },
-        { begriff: "grundieren", einheit: "m²", preis: 4.5 },
-        { begriff: "tapezieren", einheit: "m²", preis: 14 },
-        { begriff: "lackieren", einheit: "lfm", preis: 18 },
-        { begriff: "abkleben", einheit: "pausch.", preis: 90 },
+        { begriff: "arbeitsstunde", einheit: "Std.", preis: 60 },
+        { begriff: "anfahrt", einheit: "pausch.", preis: 40 },
+        { begriff: "entsorgung", einheit: "m³", preis: 45 },
       ],
     },
     stand: "",
@@ -688,10 +738,10 @@ function auftragBearbeiten(id, vorbelegterKundeId) {
   const a = id
     ? daten.auftraege.find((x) => x.id === id)
     : { id: "", kundeId: vorbelegterKundeId || "", titel: "", beschreibung: "", status: "anfrage",
-        termin: "", positionen: [], material: "", notizen: "", angebotNr: "", rechnungNr: "" };
+        termin: "", einsatzOrt: "", zielOrt: "", positionen: [], material: "", notizen: "", angebotNr: "", rechnungNr: "" };
   if (!a) return;
   bearbeitungsPositionen = JSON.parse(JSON.stringify(a.positionen || []));
-  if (bearbeitungsPositionen.length === 0) bearbeitungsPositionen.push({ bezeichnung: "", menge: 1, einheit: "m²", preis: "" });
+  if (bearbeitungsPositionen.length === 0) bearbeitungsPositionen.push({ bezeichnung: "", menge: 1, einheit: "Std.", preis: "" });
 
   dialogOeffnen(`
   <div class="dialog-kopf">
@@ -714,11 +764,13 @@ function auftragBearbeiten(id, vorbelegterKundeId) {
         <select id="a-status">${STATUS.map((s) => `<option value="${s.id}" ${s.id === a.status ? "selected" : ""}>${s.name}</option>`).join("")}</select>
       </div>
     </div>
-    <label>Titel * <span style="font-weight:400">(z. B. „Wohnung streichen, 3 Zimmer“)</span></label>
+    <label>Titel * <span style="font-weight:400">(z. B. „Wohnung streichen“ oder „Umzug 3-Zimmer-Wohnung“)</span></label>
     <input id="a-titel" value="${esc(a.titel)}">
     <div class="feldpaar">
-      <div><label>Termin / Baubeginn</label><input id="a-termin" type="date" value="${esc(a.termin)}"></div>
+      <div><label>Termin / Beginn</label><input id="a-termin" type="date" value="${esc(a.termin)}"></div>
       <div><label>Beschreibung / Absprachen</label><textarea id="a-beschreibung" style="min-height:44px">${esc(a.beschreibung)}</textarea></div>
+      <div><label>Einsatzort / Ladeadresse</label><input id="a-einsatzort" value="${esc(a.einsatzOrt)}" placeholder="Straße, PLZ Ort"></div>
+      <div><label>Zieladresse <span style="font-weight:400">(bei Transport / Umzug)</span></label><input id="a-zielort" value="${esc(a.zielOrt)}" placeholder="leer lassen, wenn nicht nötig"></div>
     </div>
 
     <div class="zeile" style="justify-content:space-between;margin-top:12px">
@@ -737,7 +789,7 @@ function auftragBearbeiten(id, vorbelegterKundeId) {
       <div><label>Interne Notizen</label><textarea id="a-notizen">${esc(a.notizen)}</textarea></div>
     </div>
 
-    <label>📷 Fotos (Baustelle, Aufmaß, Schäden)</label>
+    <label>📷 Fotos (Baustelle, Aufmaß, Ladung, Schäden)</label>
     ${id ? `
     <div class="fotogitter" id="a-fotos"></div>
     <button class="sekundaer klein" onclick="document.getElementById('a-fotoeingabe').click()">📷 Foto aufnehmen / hinzufügen</button>
@@ -764,7 +816,7 @@ function positionenRendern() {
     const summe = (Number(p.menge) || 0) * (Number(p.preis) || 0);
     return `
     <tr>
-      <td><input value="${esc(p.bezeichnung)}" placeholder="z. B. Wände u. Decken streichen" oninput="positionAendern(${i},'bezeichnung',this.value)"></td>
+      <td><input value="${esc(p.bezeichnung)}" placeholder="z. B. Wände streichen / Möbel tragen" oninput="positionAendern(${i},'bezeichnung',this.value)"></td>
       <td class="sp-menge"><input type="number" step="0.01" min="0" value="${esc(p.menge)}" oninput="positionAendern(${i},'menge',this.value)"></td>
       <td class="sp-einheit"><select onchange="positionAendern(${i},'einheit',this.value)">${EINHEITEN.map((e) => `<option ${e === p.einheit ? "selected" : ""}>${e}</option>`).join("")}</select></td>
       <td class="sp-preis"><input type="number" step="0.01" min="0" value="${esc(p.preis)}" oninput="positionAendern(${i},'preis',this.value)"></td>
@@ -796,7 +848,7 @@ function positionAendern(i, feld, wert) {
 }
 
 function positionHinzufuegen() {
-  bearbeitungsPositionen.push({ bezeichnung: "", menge: 1, einheit: "m²", preis: "" });
+  bearbeitungsPositionen.push({ bezeichnung: "", menge: 1, einheit: "Std.", preis: "" });
   positionenRendern();
 }
 
@@ -815,6 +867,8 @@ function auftragSpeichern(id) {
     kundeId, titel,
     status: document.getElementById("a-status").value,
     termin: document.getElementById("a-termin").value,
+    einsatzOrt: document.getElementById("a-einsatzort").value.trim(),
+    zielOrt: document.getElementById("a-zielort").value.trim(),
     beschreibung: document.getElementById("a-beschreibung").value,
     material: document.getElementById("a-material").value,
     notizen: document.getElementById("a-notizen").value,
@@ -880,7 +934,7 @@ function dokumentDrucken(id, art) {
       </div>
     </div>
     <div class="d-firma">
-      <strong>${esc(e.firma || "Malermeisterbetrieb")}</strong><br>
+      <strong>${esc(e.firma || (BRANCHEN[e.branche] ? BRANCHEN[e.branche].name : "Handwerksbetrieb"))}</strong><br>
       ${e.inhaber ? "Inhaber: " + esc(e.inhaber) + "<br>" : ""}
       ${e.strasse ? esc(e.strasse) + "<br>" : ""}
       ${e.plzOrt ? esc(e.plzOrt) + "<br>" : ""}
@@ -890,7 +944,9 @@ function dokumentDrucken(id, art) {
   </div>
 
   <h1>${titelzeile}</h1>
-  <div class="d-meta">Datum: ${heute}${a.titel ? " · Bauvorhaben: " + esc(a.titel) : ""}</div>
+  <div class="d-meta">Datum: ${heute}${a.titel ? " · Auftrag: " + esc(a.titel) : ""}${
+    a.einsatzOrt && a.zielOrt ? " · Von: " + esc(a.einsatzOrt) + " · Nach: " + esc(a.zielOrt)
+    : a.einsatzOrt ? " · Einsatzort: " + esc(a.einsatzOrt) : ""}</div>
   ${a.beschreibung ? `<p>${esc(a.beschreibung)}</p>` : ""}
 
   <table>
@@ -935,6 +991,8 @@ function auftragSpeichernStill(id) {
   a.titel = document.getElementById("a-titel").value.trim() || a.titel;
   a.status = document.getElementById("a-status").value;
   a.termin = document.getElementById("a-termin").value;
+  a.einsatzOrt = document.getElementById("a-einsatzort").value.trim();
+  a.zielOrt = document.getElementById("a-zielort").value.trim();
   a.beschreibung = document.getElementById("a-beschreibung").value;
   a.material = document.getElementById("a-material").value;
   a.notizen = document.getElementById("a-notizen").value;
@@ -1079,9 +1137,15 @@ async function fotoSync() {
    ========================================================= */
 const EINHEIT_ERKENNUNG = [
   [/^(m²|m2|qm)$/i, "m²"],
+  [/^(m³|m3|cbm|kubikmeter)$/i, "m³"],
   [/^(std\.?|stunden?|h)$/i, "Std."],
   [/^(stk\.?|stück)$/i, "Stk."],
   [/^lfm$/i, "lfm"],
+  [/^km$/i, "km"],
+  [/^kg$/i, "kg"],
+  [/^kartons?$/i, "Karton"],
+  [/^fahrt(en)?$/i, "Fahrt"],
+  [/^tage?$/i, "Tag"],
   [/^(liter|l)$/i, "Liter"],
   [/^pausch(al|\.)?$/i, "pausch."],
 ];
@@ -1091,8 +1155,10 @@ function zahlDe(text) { return Number(String(text).replace(",", ".")); }
 // Eine Notizzeile wie „Wohnzimmer Wände 62 m² streichen à 12,50“ zerlegen.
 // Zeilen ohne Mengen- oder Preisangabe gelten als Beschreibung und werden übersprungen.
 function zeileZuPosition(zeile) {
-  const mengeTreffer = zeile.match(/(\d+(?:[.,]\d+)?)\s*(m²|m2|qm|std\.?|stunden?|stk\.?|stück|lfm|liter|pausch(?:al|\.)?|h|l)(?![a-zäöü])/i);
-  const preisTreffer = zeile.match(/(?:à|je|zu)\s*(\d+(?:[.,]\d+)?)\s*(?:€|eur)?|(\d+(?:[.,]\d+)?)\s*(?:€|eur)/i);
+  const mengeTreffer = zeile.match(/(\d+(?:[.,]\d+)?)\s*(m²|m2|qm|m³|m3|cbm|kubikmeter|std\.?|stunden?|stk\.?|stück|lfm|liter|kartons?|fahrten?|tage?|km|kg|pausch(?:al|\.)?|h|l)(?![a-zäöü])/i);
+  // Preis nur bei eindeutigem Signal: „à 12,50“ oder Betrag mit €/EUR („45 €“).
+  // „je 8 Std“ ist eine Menge, kein Preis.
+  const preisTreffer = zeile.match(/à\s*(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s*(?:€|eur(?![a-zäöü]))/i);
   if (!mengeTreffer && !preisTreffer) return null;
 
   let einheit = "pausch.";
@@ -1135,10 +1201,11 @@ function assistentOeffnen() {
     <button class="schliessen" onclick="dialog2.close()" aria-label="Schließen">×</button>
   </div>
   <div class="dialog-inhalt">
-    <label>Notizen (eine Leistung je Zeile, z. B. „Wohnzimmer Wände 62 m² streichen“)</label>
+    <label>Notizen (eine Leistung je Zeile, z. B. „Wände 62 m² streichen“ oder „3 Helfer 8 Std“)</label>
     <textarea id="as-text" style="min-height:120px" oninput="assistentVorschau()">${esc(vorbelegung)}</textarea>
-    <div class="hinweis">Erkannt werden Mengen (m², Std., Stk., lfm, Liter), Preise („à 12,50“ oder „120 €“)
-    und Begriffe aus deiner Preisliste (Einstellungen). Zeilen ohne Menge/Preis bleiben unberücksichtigt.</div>
+    <div class="hinweis">Erkannt werden Mengen (m², m³, Std., Stk., lfm, km, kg, Kartons, Fahrten, Tage, Liter),
+    Preise („à 12,50“ oder „120 €“) und Begriffe aus deiner Preisliste (Einstellungen).
+    Zeilen ohne Menge/Preis bleiben unberücksichtigt.</div>
     <label>Vorschau</label>
     <div id="as-vorschau"></div>
   </div>
@@ -1192,7 +1259,7 @@ function renderEinstellungen() {
   <div class="karte">
     <h2>Meine Firmendaten <span style="font-weight:400;font-size:.82rem;color:var(--text-leise)">(erscheinen auf Angebot und Rechnung)</span></h2>
     <div class="feldpaar">
-      <div><label>Firmenname</label><input id="e-firma" value="${esc(e.firma)}" placeholder="Malermeister Max Mustermann"></div>
+      <div><label>Firmenname</label><input id="e-firma" value="${esc(e.firma)}" placeholder="z. B. Mustermann Umzüge / Malermeister Muster"></div>
       <div><label>Inhaber</label><input id="e-inhaber" value="${esc(e.inhaber)}"></div>
       <div><label>Straße, Hausnummer</label><input id="e-strasse" value="${esc(e.strasse)}"></div>
       <div><label>PLZ, Ort</label><input id="e-plzort" value="${esc(e.plzOrt)}"></div>
@@ -1206,9 +1273,16 @@ function renderEinstellungen() {
       <div><label>Zahlungsziel (Tage)</label><input id="e-zahlungsziel" type="number" step="1" min="0" value="${esc(e.zahlungsziel)}"></div>
       <div><label>Stundensatz (€)</label><input id="e-stundensatz" type="number" step="0.5" min="0" value="${esc(e.stundensatz)}"></div>
     </div>
+    <div class="zeile" style="margin-top:14px">
+      <div class="waechst">
+        <label>Meine Branche</label>
+        <select id="e-branche">${Object.entries(BRANCHEN).map(([id, b]) => `<option value="${id}" ${id === e.branche ? "selected" : ""}>${b.name}</option>`).join("")}</select>
+      </div>
+      <button class="sekundaer" style="align-self:flex-end" onclick="brancheVorlageUebernehmen()">Preisliste mit Branchen-Vorlage füllen</button>
+    </div>
     <label>Preisliste für den Notiz-Assistenten <span style="font-weight:400">(je Zeile: Begriff ; Preis ; Einheit)</span></label>
     <textarea id="e-preisliste" style="min-height:110px" placeholder="streichen ; 12,50 ; m²">${esc((e.preisliste || []).map((p) => p.begriff + " ; " + String(p.preis).replace(".", ",") + " ; " + p.einheit).join("\n"))}</textarea>
-    <div class="hinweis">Taucht ein Begriff (z. B. „streichen“) in einer Notizzeile auf, setzt der Assistent automatisch diesen Preis ein.</div>
+    <div class="hinweis">Taucht ein Begriff (z. B. „streichen“ oder „helfer“) in einer Notizzeile auf, setzt der Assistent automatisch diesen Preis ein. Preise unbedingt an den eigenen Betrieb anpassen.</div>
     <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-size:.9rem">
       <input type="checkbox" id="e-kleinunternehmer" style="width:auto" ${e.kleinunternehmer ? "checked" : ""}>
       Kleinunternehmer nach § 19 UStG (keine Umsatzsteuer ausweisen)
@@ -1236,8 +1310,18 @@ function renderEinstellungen() {
   </div>`;
 }
 
+// Branchen-Vorlage in das Preislisten-Feld übernehmen (gespeichert wird erst mit „Speichern“)
+function brancheVorlageUebernehmen() {
+  const branche = BRANCHEN[document.getElementById("e-branche").value];
+  if (!branche) return;
+  const feld = document.getElementById("e-preisliste");
+  if (feld.value.trim() && !confirm("Die aktuelle Preisliste durch die Vorlage „" + branche.name + "“ ersetzen?")) return;
+  feld.value = branche.preisliste.map((p) => p.begriff + " ; " + String(p.preis).replace(".", ",") + " ; " + p.einheit).join("\n");
+}
+
 function einstellungenSpeichern() {
   const e = daten.einstellungen;
+  e.branche = document.getElementById("e-branche").value;
   e.firma = document.getElementById("e-firma").value.trim();
   e.inhaber = document.getElementById("e-inhaber").value.trim();
   e.strasse = document.getElementById("e-strasse").value.trim();
@@ -1266,7 +1350,7 @@ function sicherungExportieren() {
   const blob = new Blob([JSON.stringify(daten, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "maler-auftraege-sicherung-" + heuteISO() + ".json";
+  a.download = "auftraege-sicherung-" + heuteISO() + ".json";
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -1306,10 +1390,11 @@ function allesLoeschen() {
 }
 
 function beispieldatenLaden() {
-  const k1 = uid(), k2 = uid();
+  const k1 = uid(), k2 = uid(), k3 = uid();
   daten.kunden.push(
     { id: k1, name: "Familie Schneider", strasse: "Lindenweg 12", plzOrt: "50823 Köln", telefon: "0221 555123", email: "", notizen: "Schlüssel beim Nachbarn (Nr. 14).", angelegtAm: heuteISO() },
     { id: k2, name: "Hausverwaltung Berger GmbH", strasse: "Ringstraße 4", plzOrt: "50667 Köln", telefon: "0221 999888", email: "info@berger-hv.example", notizen: "Rechnungen immer mit Objektnummer.", angelegtAm: heuteISO() },
+    { id: k3, name: "Familie Yilmaz", strasse: "Am Bach 3", plzOrt: "50733 Köln", telefon: "0176 4455667", email: "", notizen: "3. OG ohne Aufzug!", angelegtAm: heuteISO() },
   );
   const inEinerWoche = new Date(Date.now() + 7 * 86400000);
   const terminISO = inEinerWoche.toISOString().slice(0, 10);
@@ -1334,6 +1419,20 @@ function beispieldatenLaden() {
       ],
       material: "", notizen: "Rechnung mit Objektnummer RB-104 stellen!",
       angebotNr: "", rechnungNr: "", angelegtAm: heuteISO(), geaendertAm: new Date().toISOString(),
+    },
+    {
+      id: uid(), kundeId: k3, titel: "Umzug 3-Zimmer-Wohnung", status: "angebot",
+      termin: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+      einsatzOrt: "Am Bach 3, 50733 Köln", zielOrt: "Feldstraße 21, 53111 Bonn",
+      beschreibung: "3. OG ohne Aufzug, Zielwohnung 1. OG. Küche wird mitgenommen.",
+      positionen: [
+        { bezeichnung: "Umzugshelfer (3 Personen × 8 Std.)", menge: 24, einheit: "Std.", preis: 38 },
+        { bezeichnung: "LKW 7,5 t inkl. Fahrer", menge: 1, einheit: "Tag", preis: 280 },
+        { bezeichnung: "Umzugskartons (Leihgabe)", menge: 40, einheit: "Karton", preis: 2.5 },
+        { bezeichnung: "Halteverbotszone einrichten", menge: 1, einheit: "pausch.", preis: 120 },
+      ],
+      material: "Decken, Gurte, Sackkarre, Werkzeugkoffer für Küchenmontage",
+      notizen: "", angebotNr: "", rechnungNr: "", angelegtAm: heuteISO(), geaendertAm: new Date().toISOString(),
     },
   );
   speichern();

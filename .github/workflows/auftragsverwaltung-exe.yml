@@ -1,16 +1,17 @@
-name: Malermeister Windows-Exe bauen
+name: Auftragsverwaltung Windows-Exe bauen
 
 on:
   workflow_dispatch:
   push:
     branches: ["**"]
     paths:
-      - "apps/malermeister/**"
-      - ".github/workflows/malermeister-exe.yml"
-    tags: ["malermeister-v*"]
+      - "apps/auftragsverwaltung/**"
+      - ".github/workflows/auftragsverwaltung-exe.yml"
+    tags: ["auftragsverwaltung-v*"]
 
 jobs:
   # Diagnose: läuft überhaupt irgendein Job? (kein checkout, keine Actions)
+  # Wieder entfernen, sobald das GitHub-Konto entsperrt ist und der exe-Job läuft.
   diagnose-ubuntu:
     runs-on: ubuntu-latest
     steps:
@@ -24,7 +25,7 @@ jobs:
     runs-on: windows-latest
     defaults:
       run:
-        working-directory: apps/malermeister
+        working-directory: apps/auftragsverwaltung
     steps:
       - uses: actions/checkout@v4
 
@@ -37,13 +38,13 @@ jobs:
 
       - name: node.exe kopieren und Blob injizieren
         run: |
-          node -e "require('fs').copyFileSync(process.execPath, 'Malermeister.exe')"
-          npx --yes postject Malermeister.exe NODE_SEA_BLOB sea-prep.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
+          node -e "require('fs').copyFileSync(process.execPath, 'Auftragsverwaltung.exe')"
+          npx --yes postject Auftragsverwaltung.exe NODE_SEA_BLOB sea-prep.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
 
       - name: Exe testen (Server starten, API und App-Auslieferung pruefen)
         shell: pwsh
         run: |
-          $p = Start-Process -FilePath ".\Malermeister.exe" -PassThru
+          $p = Start-Process -FilePath ".\Auftragsverwaltung.exe" -PassThru
           Start-Sleep -Seconds 4
           $status = (Invoke-WebRequest -UseBasicParsing http://localhost:8722/api/status).StatusCode
           $app = Invoke-WebRequest -UseBasicParsing http://localhost:8722/
@@ -55,15 +56,15 @@ jobs:
       - name: Exe als Artefakt bereitstellen
         uses: actions/upload-artifact@v4
         with:
-          name: Malermeister-Windows
-          path: apps/malermeister/Malermeister.exe
+          name: Auftragsverwaltung-Windows
+          path: apps/auftragsverwaltung/Auftragsverwaltung.exe
 
-      - name: Release anlegen (nur bei Tag malermeister-v*)
-        if: startsWith(github.ref, 'refs/tags/malermeister-v')
+      - name: Release anlegen (nur bei Tag auftragsverwaltung-v*)
+        if: startsWith(github.ref, 'refs/tags/auftragsverwaltung-v')
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "${{ github.ref_name }}"
-          $notizen = "Malermeister-Auftragsverwaltung - PC-Programm fuer Windows.`nHerunterladen, in einen eigenen Ordner legen (z. B. C:\Malerbetrieb), doppelklicken.`nDer Browser oeffnet sich automatisch; die Handy-Adresse steht im schwarzen Fenster."
-          gh release create $tag Malermeister.exe --title $tag --notes $notizen
+          $notizen = "Auftragsverwaltung fuer Handwerk, Transport und Umzug - PC-Programm fuer Windows.`nHerunterladen, in einen eigenen Ordner legen (z. B. C:\MeinBetrieb), doppelklicken.`nDer Browser oeffnet sich automatisch; die Handy-Adresse steht im schwarzen Fenster."
+          gh release create $tag Auftragsverwaltung.exe --title $tag --notes $notizen
