@@ -28,9 +28,14 @@ Es gibt zwei Betriebsarten:
    automatisch; im schwarzen Fenster stehen zwei Adressen:
    - **Am PC öffnen:** `http://localhost:8722`
    - **Am Handy öffnen:** `http://192.168.…:8722` (gleiches WLAN nötig)
-3. Die Handy-Adresse einmal im Handy-Browser öffnen und über „Zum
-   Startbildschirm hinzufügen“ ablegen — fertig, fühlt sich an wie
-   eine App.
+3. Die Handy-Adresse einmal am Handy öffnen und als App ablegen —
+   funktioniert mit **Android und iPhone**:
+   - **Android (Chrome):** Adresse öffnen → Menü ⋮ → **„App
+     installieren“** (bzw. „Zum Startbildschirm hinzufügen“). Die App
+     bekommt ein eigenes Symbol und startet im Vollbild.
+   - **iPhone/iPad (Safari):** Adresse in **Safari** öffnen →
+     **Teilen-Knopf** (Viereck mit Pfeil) → **„Zum Home-Bildschirm“**.
+     Wichtig: Auf dem iPhone geht das nur mit Safari, nicht mit Chrome.
 4. In den **Einstellungen** die eigene **Branche** wählen und
    „Preisliste mit Branchen-Vorlage füllen“ klicken — dann die Preise
    an den eigenen Betrieb anpassen.
@@ -108,7 +113,9 @@ arbeitet unterwegs normal weiter und speichert alles lokal.
 ## Technik
 
 - `index.html` — die komplette App, ohne Abhängigkeiten (Vanilla JS).
-  Daten im localStorage, Fotos in IndexedDB.
+  Daten im localStorage, Fotos in IndexedDB. Im Server-Modus als
+  installierbare Web-App (Manifest + Icons, `display: standalone`)
+  für Android und iOS.
 - `server.js` — Heimnetz-Server, nur Node.js-Bordmittel. REST-API:
   `GET/PUT /api/daten`, `POST/GET/DELETE /api/fotos`, Ablage in
   `daten/daten.json` und `daten/fotos/*.jpg` (atomares Schreiben).

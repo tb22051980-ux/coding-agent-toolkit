@@ -24,10 +24,26 @@ try {
   if (sea.isSea()) seaModul = sea;
 } catch { /* normaler node-Start */ }
 
-function indexHtmlLaden() {
-  if (seaModul) return Buffer.from(seaModul.getAsset("index.html"));
-  return fs.readFileSync(path.join(__dirname, "index.html"));
+function assetLaden(name) {
+  if (seaModul) return Buffer.from(seaModul.getAsset(name));
+  return fs.readFileSync(path.join(__dirname, name));
 }
+
+// Web-App-Manifest: macht die Seite auf Android („App installieren“)
+// und iPhone („Zum Home-Bildschirm“) zu einer Vollbild-App mit Icon.
+const MANIFEST = JSON.stringify({
+  name: "Auftragsverwaltung",
+  short_name: "Aufträge",
+  start_url: "/",
+  scope: "/",
+  display: "standalone",
+  background_color: "#f4f6f8",
+  theme_color: "#1d5c8f",
+  icons: [
+    { src: "/icon-180.png", sizes: "180x180", type: "image/png" },
+    { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+  ],
+});
 
 // Datenablage: neben dem Programm, wenn dort geschrieben werden darf
 // (z. B. C:\MeinBetrieb); sonst im Benutzerprofil (z. B. bei
@@ -94,7 +110,17 @@ const server = http.createServer(async (req, res) => {
     // ---- App ausliefern ----
     if (req.method === "GET" && (pfad === "/" || pfad === "/index.html")) {
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
-      res.end(indexHtmlLaden());
+      res.end(assetLaden("index.html"));
+      return;
+    }
+    if (req.method === "GET" && pfad === "/manifest.webmanifest") {
+      res.writeHead(200, { "Content-Type": "application/manifest+json; charset=utf-8", "Cache-Control": "no-store" });
+      res.end(MANIFEST);
+      return;
+    }
+    if (req.method === "GET" && (pfad === "/icon-180.png" || pfad === "/icon-512.png")) {
+      res.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "public, max-age=86400" });
+      res.end(assetLaden(pfad.slice(1)));
       return;
     }
 

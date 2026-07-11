@@ -2,7 +2,12 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1d5c8f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Aufträge">
 <title>Auftragsverwaltung – Handwerk, Transport &amp; Umzug</title>
 <style>
   :root {
@@ -1440,6 +1445,17 @@ function beispieldatenLaden() {
 }
 
 /* Start */
+// Manifest und Icons gibt es nur, wenn die App vom PC-Programm kommt —
+// dann wird sie auf Android („App installieren“) und iPhone
+// („Zum Home-Bildschirm“) zur Vollbild-App mit eigenem Symbol.
+if (SERVER_MOEGLICH) {
+  for (const [rel, href] of [["manifest", "manifest.webmanifest"], ["apple-touch-icon", "icon-180.png"], ["icon", "icon-180.png"]]) {
+    const link = document.createElement("link");
+    link.rel = rel;
+    link.href = href;
+    document.head.appendChild(link);
+  }
+}
 render();
 syncAnzeige();
 syncStart();
