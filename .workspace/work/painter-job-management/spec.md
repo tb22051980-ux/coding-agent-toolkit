@@ -72,6 +72,22 @@ Gewerke sowie Transport & Umzug verallgemeinert (App liegt jetzt unter
 - Verifikation: smoke4.js (Kalender, Umsatz, Stundenzettel, bezahltAm,
   PDF im Chromium-Viewer + Content-Stream-Parse auf Text/Umlaute/€).
 
+## Ausbaustufe 6 (Kaufmännisches + Abnahme)
+
+- Rabatt je Auftrag (% oder €): zentrale `summenBerechnen(positionen,
+  rabatt)` von Dialog, Druck, PDF und Umsatz gemeinsam genutzt.
+- Materialverwaltung: `einstellungen.materialliste[]`; im Auftrag als
+  Position einfügbar.
+- Kunden-Unterschrift: Canvas → PNG in `auftrag.unterschrift`;
+  Einbettung ins hand-gebaute PDF als JPEG (DCTDecode-XObject, byte-
+  weiser PDF-Aufbau); auch im Browser-Druck.
+- Wiederkehrende Termine: `serieAnlegen` erzeugt datierte Kopien
+  (wöchentlich/14-tägig/monatlich/quartalsweise).
+- Auftrag duplizieren (Ausbaustufe 5.1).
+- Verifikation: smoke5.js (Rabatt %/€, Material, Unterschrift inkl.
+  PDF-Bild-Einbettung im Chromium-Viewer, Serie mit Datumsprüfung);
+  smoke.js/smoke2.js an neue Button-Texte angepasst; alle Suiten grün.
+
 ## Entscheidungen
 
 - **Single-File-HTML + localStorage** statt Server-App: Zielnutzer hat

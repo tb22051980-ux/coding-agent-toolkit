@@ -205,6 +205,19 @@
   .stoppuhr-laeuft { background: var(--rot) !important; color: #fff !important; }
   .zeit-summe { text-align: right; font-size: .9rem; color: var(--text-leise); margin-top: 4px; }
 
+  /* ---------- Unterschrift ---------- */
+  .unterschrift-flaeche {
+    border: 1px dashed #94a3b8; border-radius: 8px; background: #fff;
+    width: 100%; height: 150px; touch-action: none; display: block;
+  }
+  .unterschrift-vorschau { max-width: 220px; border: 1px solid var(--grau); border-radius: 8px; background: #fff; }
+
+  /* ---------- Material-Auswahl ---------- */
+  .material-zeile { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+  .material-zeile .m-name { flex: 1; }
+  .material-zeile .m-preis { color: var(--text-leise); font-size: .85rem; width: 90px; text-align: right; }
+  .material-zeile input[type=number] { width: 72px; }
+
   /* ---------- Terminkalender ---------- */
   .kal-kopf { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
   .kal-kopf h2 { margin: 0; font-size: 1.1rem; }
@@ -357,6 +370,7 @@ function leererZustand() {
         { begriff: "anfahrt", einheit: "pausch.", preis: 40 },
         { begriff: "entsorgung", einheit: "m³", preis: 45 },
       ],
+      materialliste: [],
     },
     stand: "",
     kunden: [],
@@ -527,14 +541,28 @@ function kunde(id) {
   return daten.kunden.find((k) => k.id === id) || null;
 }
 
+// Zentrale Summenberechnung inkl. Rabatt — von Dialog, Druck, PDF und
+// Umsatz gemeinsam genutzt, damit überall dieselben Zahlen stehen.
+function summenBerechnen(positionen, rabatt) {
+  const e = daten.einstellungen;
+  const nettoRoh = (positionen || []).reduce((s, p) => s + (Number(p.menge) || 0) * (Number(p.preis) || 0), 0);
+  let rabattBetrag = 0;
+  if (rabatt && Number(rabatt.wert)) {
+    rabattBetrag = rabatt.art === "betrag"
+      ? Math.min(Number(rabatt.wert), nettoRoh)
+      : nettoRoh * (Number(rabatt.wert) || 0) / 100;
+  }
+  const netto = nettoRoh - rabattBetrag;
+  const ust = e.kleinunternehmer ? 0 : netto * (Number(e.mwst) || 0) / 100;
+  return { nettoRoh, rabattBetrag, netto, ust, brutto: netto + ust };
+}
+
 function auftragNetto(a) {
-  return (a.positionen || []).reduce((s, p) => s + (Number(p.menge) || 0) * (Number(p.preis) || 0), 0);
+  return summenBerechnen(a.positionen, a.rabatt).netto;
 }
 
 function auftragBrutto(a) {
-  const netto = auftragNetto(a);
-  if (daten.einstellungen.kleinunternehmer) return netto;
-  return netto * (1 + (Number(daten.einstellungen.mwst) || 0) / 100);
+  return summenBerechnen(a.positionen, a.rabatt).brutto;
 }
 
 function neueDokumentNummer() {
@@ -803,6 +831,8 @@ function kundeLoeschen(id) {
 /* ---------- Auftrag bearbeiten ---------- */
 let bearbeitungsPositionen = [];
 let bearbeitungsZeiten = [];
+let bearbeitungsRabatt = { art: "prozent", wert: 0 };
+let bearbeitungsUnterschrift = "";
 let stoppuhrStart = null; // Zeitstempel (ms) einer laufenden Stoppuhr, sonst null
 let stoppuhrTimer = null;
 
@@ -815,6 +845,8 @@ function auftragBearbeiten(id, vorbelegterKundeId) {
   bearbeitungsPositionen = JSON.parse(JSON.stringify(a.positionen || []));
   if (bearbeitungsPositionen.length === 0) bearbeitungsPositionen.push({ bezeichnung: "", menge: 1, einheit: "Std.", preis: "" });
   bearbeitungsZeiten = JSON.parse(JSON.stringify(a.zeiten || []));
+  bearbeitungsRabatt = Object.assign({ art: "prozent", wert: 0 }, a.rabatt || {});
+  bearbeitungsUnterschrift = a.unterschrift || "";
 
   dialogOeffnen(`
   <div class="dialog-kopf">
@@ -848,13 +880,24 @@ function auftragBearbeiten(id, vorbelegterKundeId) {
 
     <div class="zeile" style="justify-content:space-between;margin-top:12px">
       <label style="margin:0">Positionen (für Angebot / Rechnung)</label>
-      <button class="sekundaer klein" onclick="assistentOeffnen()">🪄 Positionen aus Notizen</button>
+      <span>
+        <button class="sekundaer klein" onclick="materialAuswahlOeffnen()">📦 Material</button>
+        <button class="sekundaer klein" onclick="assistentOeffnen()">🪄 aus Notizen</button>
+      </span>
     </div>
     <table class="positionen">
       <thead><tr><th>Leistung</th><th>Menge</th><th>Einheit</th><th>€/Einheit</th><th style="text-align:right">Summe</th><th></th></tr></thead>
       <tbody id="a-positionen"></tbody>
     </table>
     <button class="sekundaer klein" onclick="positionHinzufuegen()">+ Position</button>
+    <div class="zeile" style="margin-top:10px;gap:8px">
+      <label style="margin:0">Rabatt</label>
+      <input type="number" step="0.01" min="0" id="a-rabattwert" value="${esc(bearbeitungsRabatt.wert || "")}" style="width:90px" oninput="rabattAendern()" placeholder="0">
+      <select id="a-rabattart" style="width:auto" onchange="rabattAendern()">
+        <option value="prozent" ${bearbeitungsRabatt.art !== "betrag" ? "selected" : ""}>%</option>
+        <option value="betrag" ${bearbeitungsRabatt.art === "betrag" ? "selected" : ""}>€</option>
+      </select>
+    </div>
     <div class="summenblock" id="a-summen"></div>
 
     <div class="zeile" style="justify-content:space-between;margin-top:12px">
@@ -877,12 +920,16 @@ function auftragBearbeiten(id, vorbelegterKundeId) {
     <button class="sekundaer klein" onclick="document.getElementById('a-fotoeingabe').click()">📷 Foto aufnehmen / hinzufügen</button>
     <input type="file" id="a-fotoeingabe" accept="image/*" capture="environment" multiple style="display:none" onchange="fotoHinzufuegen(this,'${id}')">
     ` : `<div class="hinweis">Auftrag zuerst speichern — danach können Fotos aufgenommen werden.</div>`}
+
+    <label>✍️ Abnahme / Unterschrift des Kunden</label>
+    <div id="a-unterschrift-bereich"></div>
     ${a.angebotNr || a.rechnungNr ? `<div class="hinweis">${a.angebotNr ? "Angebot Nr. " + esc(a.angebotNr) : ""}${a.angebotNr && a.rechnungNr ? " · " : ""}${a.rechnungNr ? "Rechnung Nr. " + esc(a.rechnungNr) : ""}</div>` : ""}
   </div>
   <div class="dialog-fuss">
     ${id ? `<button class="gefahr klein" onclick="auftragLoeschen('${id}')">Löschen</button>` : "<span></span>"}
     <div class="rechtsgruppe">
-      ${id ? `<button class="sekundaer" onclick="auftragDuplizieren('${id}')" title="Als Vorlage für einen neuen Auftrag kopieren">⧉ Duplizieren</button>
+      ${id ? `<button class="sekundaer" onclick="serieOeffnen('${id}')" title="Wiederkehrende Termine anlegen">🔁 Serie</button>
+              <button class="sekundaer" onclick="auftragDuplizieren('${id}')" title="Als Vorlage für einen neuen Auftrag kopieren">⧉ Duplizieren</button>
               <button class="sekundaer" onclick="dokumentAusgeben('${id}','angebot')">📄 Angebot</button>
               <button class="sekundaer" onclick="dokumentAusgeben('${id}','rechnung')">📄 Rechnung</button>` : ""}
       <button class="primaer" onclick="auftragSpeichern('${id || ""}')">Speichern</button>
@@ -890,6 +937,7 @@ function auftragBearbeiten(id, vorbelegterKundeId) {
   </div>`);
   positionenRendern();
   zeitenRendern();
+  unterschriftRendern();
   if (id) fotosRendern(a);
   document.getElementById("a-titel").focus();
 }
@@ -909,12 +957,19 @@ function positionenRendern() {
     </tr>`;
   }).join("");
 
-  const netto = bearbeitungsPositionen.reduce((s, p) => s + (Number(p.menge) || 0) * (Number(p.preis) || 0), 0);
+  summenAnzeigeAktualisieren();
+}
+
+// Summenblock im Dialog aus den aktuellen Positionen + Rabatt neu aufbauen
+function summenAnzeigeAktualisieren() {
+  const ziel = document.getElementById("a-summen");
+  if (!ziel) return;
   const e = daten.einstellungen;
-  const mwstBetrag = e.kleinunternehmer ? 0 : netto * (Number(e.mwst) || 0) / 100;
-  document.getElementById("a-summen").innerHTML = e.kleinunternehmer
-    ? `<div class="brutto">Gesamt: ${euro(netto)}</div><div class="hinweis">Kein USt-Ausweis (Kleinunternehmer § 19 UStG)</div>`
-    : `Netto: ${euro(netto)} · zzgl. ${e.mwst} % USt: ${euro(mwstBetrag)}<div class="brutto">Gesamt: ${euro(netto + mwstBetrag)}</div>`;
+  const s = summenBerechnen(bearbeitungsPositionen, bearbeitungsRabatt);
+  const rabattZeile = s.rabattBetrag ? `Zwischensumme: ${euro(s.nettoRoh)} · Rabatt: −${euro(s.rabattBetrag)}<br>` : "";
+  ziel.innerHTML = e.kleinunternehmer
+    ? `${rabattZeile}<div class="brutto">Gesamt: ${euro(s.netto)}</div><div class="hinweis">Kein USt-Ausweis (Kleinunternehmer § 19 UStG)</div>`
+    : `${rabattZeile}Netto: ${euro(s.netto)} · zzgl. ${e.mwst} % USt: ${euro(s.ust)}<div class="brutto">Gesamt: ${euro(s.brutto)}</div>`;
 }
 
 function positionAendern(i, feld, wert) {
@@ -923,12 +978,15 @@ function positionAendern(i, feld, wert) {
   const zeile = document.querySelectorAll("#a-positionen tr")[i];
   const summe = (Number(bearbeitungsPositionen[i].menge) || 0) * (Number(bearbeitungsPositionen[i].preis) || 0);
   if (zeile) zeile.querySelector(".sp-summe").textContent = summe ? euro(summe) : "–";
-  const netto = bearbeitungsPositionen.reduce((s, p) => s + (Number(p.menge) || 0) * (Number(p.preis) || 0), 0);
-  const e = daten.einstellungen;
-  const mwstBetrag = e.kleinunternehmer ? 0 : netto * (Number(e.mwst) || 0) / 100;
-  document.getElementById("a-summen").innerHTML = e.kleinunternehmer
-    ? `<div class="brutto">Gesamt: ${euro(netto)}</div><div class="hinweis">Kein USt-Ausweis (Kleinunternehmer § 19 UStG)</div>`
-    : `Netto: ${euro(netto)} · zzgl. ${e.mwst} % USt: ${euro(mwstBetrag)}<div class="brutto">Gesamt: ${euro(netto + mwstBetrag)}</div>`;
+  summenAnzeigeAktualisieren();
+}
+
+function rabattAendern() {
+  bearbeitungsRabatt = {
+    art: document.getElementById("a-rabattart").value,
+    wert: Number(document.getElementById("a-rabattwert").value) || 0,
+  };
+  summenAnzeigeAktualisieren();
 }
 
 function positionHinzufuegen() {
@@ -958,6 +1016,8 @@ function auftragSpeichern(id) {
     notizen: document.getElementById("a-notizen").value,
     positionen: bearbeitungsPositionen.filter((p) => p.bezeichnung.trim() !== ""),
     zeiten: bearbeitungsZeiten.filter((z) => z.datum),
+    rabatt: { art: bearbeitungsRabatt.art, wert: Number(bearbeitungsRabatt.wert) || 0 },
+    unterschrift: bearbeitungsUnterschrift,
     geaendertAm: new Date().toISOString(),
   };
   const vorher = id ? daten.auftraege.find((x) => x.id === id) : null;
@@ -985,8 +1045,9 @@ function auftragDuplizieren(id) {
     status: "anfrage",
     termin: "", einsatzOrt: alt.einsatzOrt || "", zielOrt: alt.zielOrt || "",
     positionen: JSON.parse(JSON.stringify(alt.positionen || [])),
+    rabatt: Object.assign({ art: "prozent", wert: 0 }, alt.rabatt || {}),
     zeiten: [], material: alt.material || "", notizen: alt.notizen || "",
-    fotos: [], angebotNr: "", rechnungNr: "", bezahltAm: "",
+    fotos: [], unterschrift: "", angebotNr: "", rechnungNr: "", bezahltAm: "",
     angelegtAm: heuteISO(), geaendertAm: new Date().toISOString(),
   };
   daten.auftraege.push(kopie);
@@ -1006,6 +1067,217 @@ function auftragLoeschen(id) {
   speichern();
   dialogSchliessen();
   render();
+}
+
+/* =========================================================
+   Kunden-Unterschrift (Abnahme)
+   ========================================================= */
+function unterschriftRendern() {
+  const ziel = document.getElementById("a-unterschrift-bereich");
+  if (!ziel) return;
+  if (bearbeitungsUnterschrift) {
+    ziel.innerHTML = `
+      <img class="unterschrift-vorschau" src="${bearbeitungsUnterschrift}" alt="Unterschrift">
+      <div style="margin-top:6px"><button class="sekundaer klein" onclick="unterschriftLoeschen()">Unterschrift entfernen</button></div>`;
+  } else {
+    ziel.innerHTML = `<button class="sekundaer klein" onclick="unterschriftOeffnen()">✍️ Jetzt unterschreiben lassen</button>`;
+  }
+}
+
+function unterschriftLoeschen() {
+  bearbeitungsUnterschrift = "";
+  unterschriftRendern();
+}
+
+function unterschriftOeffnen() {
+  dialog2.innerHTML = `
+  <div class="dialog-kopf">
+    <h2>✍️ Unterschrift</h2>
+    <button class="schliessen" onclick="dialog2.close()" aria-label="Schließen">×</button>
+  </div>
+  <div class="dialog-inhalt">
+    <p class="hinweis" style="margin-top:0">Mit dem Finger (oder der Maus) im Feld unterschreiben.</p>
+    <canvas id="us-canvas" class="unterschrift-flaeche" width="600" height="200"></canvas>
+  </div>
+  <div class="dialog-fuss">
+    <button class="sekundaer klein" onclick="unterschriftFeldLeeren()">Neu</button>
+    <div class="rechtsgruppe">
+      <button class="sekundaer" onclick="dialog2.close()">Abbrechen</button>
+      <button class="primaer" onclick="unterschriftUebernehmen()">Übernehmen</button>
+    </div>
+  </div>`;
+  dialog2.showModal();
+  unterschriftZeichnenEinrichten();
+}
+
+let usHatInhalt = false;
+function unterschriftZeichnenEinrichten() {
+  const canvas = document.getElementById("us-canvas");
+  const ctx = canvas.getContext("2d");
+  ctx.lineWidth = 2.5; ctx.lineCap = "round"; ctx.strokeStyle = "#0f172a";
+  usHatInhalt = false;
+  let zeichnet = false, letzteX = 0, letzteY = 0;
+  const pos = (e) => {
+    const r = canvas.getBoundingClientRect();
+    const p = e.touches ? e.touches[0] : e;
+    return { x: (p.clientX - r.left) * (canvas.width / r.width), y: (p.clientY - r.top) * (canvas.height / r.height) };
+  };
+  const start = (e) => { e.preventDefault(); zeichnet = true; const q = pos(e); letzteX = q.x; letzteY = q.y; };
+  const zeichne = (e) => {
+    if (!zeichnet) return; e.preventDefault();
+    const q = pos(e);
+    ctx.beginPath(); ctx.moveTo(letzteX, letzteY); ctx.lineTo(q.x, q.y); ctx.stroke();
+    letzteX = q.x; letzteY = q.y; usHatInhalt = true;
+  };
+  const ende = () => { zeichnet = false; };
+  canvas.addEventListener("mousedown", start); canvas.addEventListener("mousemove", zeichne);
+  window.addEventListener("mouseup", ende);
+  canvas.addEventListener("touchstart", start, { passive: false });
+  canvas.addEventListener("touchmove", zeichne, { passive: false });
+  canvas.addEventListener("touchend", ende);
+}
+
+function unterschriftFeldLeeren() {
+  const canvas = document.getElementById("us-canvas");
+  canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
+  usHatInhalt = false;
+}
+
+function unterschriftUebernehmen() {
+  if (!usHatInhalt) { alert("Bitte zuerst unterschreiben."); return; }
+  bearbeitungsUnterschrift = document.getElementById("us-canvas").toDataURL("image/png");
+  dialog2.close();
+  unterschriftRendern();
+}
+
+/* =========================================================
+   Materialverwaltung — Katalog in Positionen übernehmen
+   ========================================================= */
+function materialAuswahlOeffnen() {
+  const liste = daten.einstellungen.materialliste || [];
+  if (liste.length === 0) {
+    alert("Noch kein Material hinterlegt. Unter Einstellungen → Materialliste kannst du deine Materialien mit Preisen eintragen.");
+    zeige("einstellungen");
+    dialogSchliessen();
+    return;
+  }
+  dialog2.innerHTML = `
+  <div class="dialog-kopf">
+    <h2>📦 Material einfügen</h2>
+    <button class="schliessen" onclick="dialog2.close()" aria-label="Schließen">×</button>
+  </div>
+  <div class="dialog-inhalt">
+    <p class="hinweis" style="margin-top:0">Menge eintragen; alles mit Menge größer 0 wird als Position übernommen.</p>
+    ${liste.map((m, i) => `
+      <div class="material-zeile">
+        <span class="m-name">${esc(m.name)}</span>
+        <span class="m-preis">${euro(Number(m.preis) || 0)} / ${esc(m.einheit)}</span>
+        <input type="number" step="0.01" min="0" value="0" id="mat-${i}" placeholder="Menge">
+      </div>`).join("")}
+  </div>
+  <div class="dialog-fuss">
+    <span></span>
+    <div class="rechtsgruppe">
+      <button class="sekundaer" onclick="dialog2.close()">Abbrechen</button>
+      <button class="primaer" onclick="materialUebernehmen()">In Auftrag übernehmen</button>
+    </div>
+  </div>`;
+  dialog2.showModal();
+}
+
+function materialUebernehmen() {
+  const liste = daten.einstellungen.materialliste || [];
+  const neu = [];
+  liste.forEach((m, i) => {
+    const menge = Number(document.getElementById("mat-" + i).value) || 0;
+    if (menge > 0) neu.push({ bezeichnung: m.name, menge, einheit: m.einheit || "Stk.", preis: Number(m.preis) || 0 });
+  });
+  if (neu.length === 0) { alert("Keine Menge eingetragen."); return; }
+  if (bearbeitungsPositionen.length === 1 && !bearbeitungsPositionen[0].bezeichnung.trim()) bearbeitungsPositionen = [];
+  bearbeitungsPositionen.push(...neu);
+  dialog2.close();
+  positionenRendern();
+}
+
+/* =========================================================
+   Wiederkehrende Termine (Serie) — Folgeaufträge anlegen
+   ========================================================= */
+function serieOeffnen(id) {
+  auftragSpeichernStill(id);
+  const a = daten.auftraege.find((x) => x.id === id);
+  if (!a) return;
+  dialog2.innerHTML = `
+  <div class="dialog-kopf">
+    <h2>🔁 Wiederkehrende Termine</h2>
+    <button class="schliessen" onclick="dialog2.close()" aria-label="Schließen">×</button>
+  </div>
+  <div class="dialog-inhalt">
+    <p>Legt Kopien dieses Auftrags mit fortlaufenden Terminen an (z. B. Wartung / Pflege). Leistungen, Preise und Adressen werden übernommen.</p>
+    <div class="feldpaar">
+      <div>
+        <label>Rhythmus</label>
+        <select id="se-takt">
+          <option value="7">wöchentlich</option>
+          <option value="14">alle 2 Wochen</option>
+          <option value="month" selected>monatlich</option>
+          <option value="quarter">alle 3 Monate</option>
+        </select>
+      </div>
+      <div>
+        <label>Anzahl Termine (inkl. diesem)</label>
+        <input type="number" id="se-anzahl" min="2" max="60" value="6">
+      </div>
+    </div>
+    <label>Erster Termin</label>
+    <input type="date" id="se-start" value="${esc(a.termin || heuteISO())}">
+    <div class="hinweis">Der aktuelle Auftrag bekommt den ersten Termin; für die weiteren werden Kopien angelegt.</div>
+  </div>
+  <div class="dialog-fuss">
+    <span></span>
+    <div class="rechtsgruppe">
+      <button class="sekundaer" onclick="dialog2.close()">Abbrechen</button>
+      <button class="primaer" onclick="serieAnlegen('${id}')">Serie anlegen</button>
+    </div>
+  </div>`;
+  dialog2.showModal();
+}
+
+function serieDatum(startISO, takt, index) {
+  const d = new Date(startISO + "T00:00:00");
+  if (takt === "month") d.setMonth(d.getMonth() + index);
+  else if (takt === "quarter") d.setMonth(d.getMonth() + index * 3);
+  else d.setDate(d.getDate() + index * Number(takt));
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+function serieAnlegen(id) {
+  const a = daten.auftraege.find((x) => x.id === id);
+  if (!a) return;
+  const takt = document.getElementById("se-takt").value;
+  const anzahl = Math.max(2, Math.min(60, Number(document.getElementById("se-anzahl").value) || 2));
+  const start = document.getElementById("se-start").value || heuteISO();
+  // Erster Termin an den bestehenden Auftrag
+  a.termin = serieDatum(start, takt, 0);
+  if (a.status === "anfrage" || a.status === "angebot") a.status = "beauftragt";
+  a.geaendertAm = new Date().toISOString();
+  // Folgetermine als Kopien
+  for (let i = 1; i < anzahl; i++) {
+    daten.auftraege.push({
+      id: uid(), kundeId: a.kundeId, titel: a.titel, beschreibung: a.beschreibung || "",
+      status: "beauftragt", termin: serieDatum(start, takt, i),
+      einsatzOrt: a.einsatzOrt || "", zielOrt: a.zielOrt || "",
+      positionen: JSON.parse(JSON.stringify(a.positionen || [])),
+      rabatt: Object.assign({ art: "prozent", wert: 0 }, a.rabatt || {}),
+      zeiten: [], material: a.material || "", notizen: a.notizen || "",
+      fotos: [], unterschrift: "", angebotNr: "", rechnungNr: "", bezahltAm: "",
+      serie: true, angelegtAm: heuteISO(), geaendertAm: new Date().toISOString(),
+    });
+  }
+  speichern();
+  dialog2.close();
+  dialogSchliessen();
+  alert(anzahl + " Termine angelegt.");
+  zeige("termine");
 }
 
 /* =========================================================
@@ -1240,46 +1512,94 @@ function pdfEscape(text) {
   return String(text).replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
 }
 
-// Minimaler, gültiger PDF-Erzeuger (A4, Helvetica). zeilen: {text,x,y,size,bold}
+function bytesZuLatin1(bytes) { return bytes.map((b) => String.fromCharCode(b)).join(""); }
+
+// Ein PNG-Daten-URL (Unterschrift) in JPEG-Bytes auf weißem Grund wandeln —
+// JPEG lässt sich per DCTDecode direkt in die PDF einbetten.
+function bildAlsJpegBytes(dataUrl, jw, jh) {
+  return new Promise((aufloesen, ablehnen) => {
+    const bild = new Image();
+    bild.onload = () => {
+      const c = document.createElement("canvas");
+      c.width = jw; c.height = jh;
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, jw, jh);
+      ctx.drawImage(bild, 0, 0, jw, jh);
+      const b64 = c.toDataURL("image/jpeg", 0.85).split(",")[1];
+      const bin = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      aufloesen({ bytes, jw, jh });
+    };
+    bild.onerror = () => ablehnen(new Error("Unterschrift-Bild nicht lesbar"));
+    bild.src = dataUrl;
+  });
+}
+
+// Bild-Zeilen (mit .bild = dataUrl) vorab zu JPEG-Bytes auflösen
+async function pdfBilderVorbereiten(zeilen) {
+  for (const z of zeilen) {
+    if (z.bild) {
+      try { z.jpeg = await bildAlsJpegBytes(z.bild, 360, 110); }
+      catch { z.jpeg = null; }
+    }
+  }
+  return zeilen;
+}
+
+// Minimaler, gültiger PDF-Erzeuger (A4, Helvetica; optional eingebettete
+// JPEG-Bilder). zeilen: {text,x,y,size,bold} oder {jpeg,x,y,w,h}
 function pdfErzeugen(zeilen) {
+  const bilder = zeilen.filter((z) => z.jpeg && z.jpeg.bytes);
   let inhalt = "";
   for (const z of zeilen) {
-    const font = z.bold ? "F2" : "F1";
-    inhalt += `BT /${font} ${z.size || 10} Tf ${z.x} ${z.y} Td (${pdfEscape(bytesZuLatin1(winAnsiBytes(z.text)))}) Tj ET\n`;
+    if (z.jpeg && z.jpeg.bytes) {
+      const idx = bilder.indexOf(z);
+      inhalt += `q ${z.w} 0 0 ${z.h} ${z.x} ${z.y} cm /Im${idx} Do Q\n`;
+    } else if (z.text !== undefined) {
+      const font = z.bold ? "F2" : "F1";
+      inhalt += `BT /${font} ${z.size || 10} Tf ${z.x} ${z.y} Td (${pdfEscape(bytesZuLatin1(winAnsiBytes(z.text)))}) Tj ET\n`;
+    }
   }
-  const objekte = [
+  const xobjRes = bilder.map((b, i) => `/Im${i} ${7 + i} 0 R`).join(" ");
+  // Textobjekte (als Strings)
+  const textObjekte = [
     "<< /Type /Catalog /Pages 2 0 R >>",
     "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> /Contents 4 0 R >>",
-    `<< /Length ${inhalt.length} >>\nstream\n${inhalt}endstream`,
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> ${bilder.length ? "/XObject << " + xobjRes + " >>" : ""} >> /Contents 4 0 R >>`,
+    `<< /Length ${winAnsiBytes(inhalt).length} >>\nstream\n${inhalt}endstream`,
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
   ];
-  let pdf = "%PDF-1.4\n";
-  const offsets = [];
-  objekte.forEach((o, i) => {
-    offsets.push(pdf.length);
-    pdf += `${i + 1} 0 obj\n${o}\nendobj\n`;
-  });
-  const xrefStart = pdf.length;
-  pdf += `xref\n0 ${objekte.length + 1}\n0000000000 65535 f \n`;
-  for (const off of offsets) pdf += String(off).padStart(10, "0") + " 00000 n \n";
-  pdf += `trailer\n<< /Size ${objekte.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
-  // In Bytes umwandeln (Latin-1), damit Umlaute korrekt landen
-  const bytes = new Uint8Array(pdf.length);
-  for (let i = 0; i < pdf.length; i++) bytes[i] = pdf.charCodeAt(i) & 0xFF;
-  return new Blob([bytes], { type: "application/pdf" });
-}
 
-function bytesZuLatin1(bytes) { return bytes.map((b) => String.fromCharCode(b)).join(""); }
+  // PDF byteweise aufbauen (Bilder sind binär)
+  const teile = [];
+  let laenge = 0;
+  const offsets = [];
+  const dazu = (s) => { const b = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i) & 0xFF; teile.push(b); laenge += b.length; };
+  const dazuBytes = (b) => { teile.push(b); laenge += b.length; };
+
+  dazu("%PDF-1.4\n");
+  textObjekte.forEach((o, i) => { offsets.push(laenge); dazu(`${i + 1} 0 obj\n${o}\nendobj\n`); });
+  bilder.forEach((b, i) => {
+    offsets.push(laenge);
+    dazu(`${7 + i} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${b.jpeg.jw} /Height ${b.jpeg.jh} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${b.jpeg.bytes.length} >>\nstream\n`);
+    dazuBytes(b.jpeg.bytes);
+    dazu("\nendstream\nendobj\n");
+  });
+  const anzahl = textObjekte.length + bilder.length;
+  const xrefStart = laenge;
+  dazu(`xref\n0 ${anzahl + 1}\n0000000000 65535 f \n`);
+  for (const off of offsets) dazu(String(off).padStart(10, "0") + " 00000 n \n");
+  dazu(`trailer\n<< /Size ${anzahl + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`);
+  return new Blob(teile, { type: "application/pdf" });
+}
 
 // Sammelt die Zeilen für Angebot/Rechnung als PDF-Layout
 function dokumentPdfZeilen(a, art, nummer) {
   const e = daten.einstellungen;
   const k = kunde(a.kundeId);
-  const netto = auftragNetto(a);
-  const mwstBetrag = e.kleinunternehmer ? 0 : netto * (Number(e.mwst) || 0) / 100;
-  const brutto = netto + mwstBetrag;
+  const sum = summenBerechnen(a.positionen, a.rabatt);
   const heute = new Date().toLocaleDateString("de-DE");
   const z = [];
   let y = 800;
@@ -1315,14 +1635,19 @@ function dokumentPdfZeilen(a, art, nummer) {
     z.push({ text: euro(g), x: 490, y, size: 9 });
   });
   // Summen
-  y -= 30;
+  y -= 26;
+  if (sum.rabattBetrag) {
+    z.push({ text: "Zwischensumme: " + euro(sum.nettoRoh), x: 380, y, size: 10 });
+    y -= 13; z.push({ text: "Rabatt: -" + euro(sum.rabattBetrag), x: 380, y, size: 10 });
+    y -= 13;
+  }
   if (e.kleinunternehmer) {
-    z.push({ text: "Gesamtbetrag: " + euro(netto), x: 350, y, size: 12, bold: true });
+    z.push({ text: "Gesamtbetrag: " + euro(sum.netto), x: 350, y, size: 12, bold: true });
     y -= 14; z.push({ text: "Kein USt-Ausweis (§ 19 UStG)", x: 350, y, size: 8 });
   } else {
-    z.push({ text: "Netto: " + euro(netto), x: 400, y, size: 10 });
-    y -= 14; z.push({ text: "zzgl. " + e.mwst + " % USt: " + euro(mwstBetrag), x: 400, y, size: 10 });
-    y -= 16; z.push({ text: "Gesamtbetrag: " + euro(brutto), x: 400, y, size: 12, bold: true });
+    z.push({ text: "Netto: " + euro(sum.netto), x: 400, y, size: 10 });
+    y -= 14; z.push({ text: "zzgl. " + e.mwst + " % USt: " + euro(sum.ust), x: 400, y, size: 10 });
+    y -= 16; z.push({ text: "Gesamtbetrag: " + euro(sum.brutto), x: 400, y, size: 12, bold: true });
   }
   // Schlusstext + Fußzeile
   y -= 40;
@@ -1330,6 +1655,11 @@ function dokumentPdfZeilen(a, art, nummer) {
     ? "Dieses Angebot ist 30 Tage gültig. Ich freue mich auf Ihren Auftrag!"
     : "Bitte überweisen Sie den Betrag innerhalb von " + (e.zahlungsziel || 14) + " Tagen. Vielen Dank!";
   z.push({ text: schluss, x: 50, y, size: 10 });
+  // Unterschrift (Rechnung/Abnahme): als Bild rechts unten
+  if (a.unterschrift) {
+    z.push({ bild: a.unterschrift, x: 350, y: 95, w: 180, h: 55 });
+    z.push({ text: "Unterschrift Kunde", x: 350, y: 88, size: 7 });
+  }
   const fuss = [firmaName, e.steuernummer ? "Steuernummer: " + e.steuernummer : "", e.iban ? "IBAN: " + e.iban : ""].filter(Boolean).join("   ·   ");
   z.push({ text: fuss, x: 50, y: 60, size: 8 });
   return z;
@@ -1369,14 +1699,15 @@ function dokumentAusgeben(id, art) {
   dialog2.showModal();
 }
 
-function dokumentPdfBlob(id, art) {
+async function dokumentPdfBlob(id, art) {
   const a = daten.auftraege.find((x) => x.id === id);
   const nummer = dokumentNummerSichern(a, art);
-  return { blob: pdfErzeugen(dokumentPdfZeilen(a, art, nummer)), name: (art === "angebot" ? "Angebot" : "Rechnung") + "-" + nummer + ".pdf" };
+  const zeilen = await pdfBilderVorbereiten(dokumentPdfZeilen(a, art, nummer));
+  return { blob: pdfErzeugen(zeilen), name: (art === "angebot" ? "Angebot" : "Rechnung") + "-" + nummer + ".pdf" };
 }
 
 async function dokumentTeilen(id, art) {
-  const { blob, name } = dokumentPdfBlob(id, art);
+  const { blob, name } = await dokumentPdfBlob(id, art);
   const datei = new File([blob], name, { type: "application/pdf" });
   try {
     if (navigator.canShare && navigator.canShare({ files: [datei] })) {
@@ -1390,8 +1721,8 @@ async function dokumentTeilen(id, art) {
   dokumentPdfHerunterladen(id, art);
 }
 
-function dokumentPdfHerunterladen(id, art) {
-  const { blob, name } = dokumentPdfBlob(id, art);
+async function dokumentPdfHerunterladen(id, art) {
+  const { blob, name } = await dokumentPdfBlob(id, art);
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = name;
@@ -1418,9 +1749,7 @@ function dokumentDrucken(id, art) {
   if (!a[nummernFeld]) { a[nummernFeld] = neueDokumentNummer(); speichern(); }
   const nummer = a[nummernFeld];
 
-  const netto = auftragNetto(a);
-  const mwstBetrag = e.kleinunternehmer ? 0 : netto * (Number(e.mwst) || 0) / 100;
-  const brutto = netto + mwstBetrag;
+  const sum = summenBerechnen(a.positionen, a.rabatt);
   const heute = new Date().toLocaleDateString("de-DE");
 
   const titelzeile = art === "angebot" ? `Angebot Nr. ${esc(nummer)}` : `Rechnung Nr. ${esc(nummer)}`;
@@ -1469,15 +1798,18 @@ function dokumentDrucken(id, art) {
   </table>
 
   <table class="d-summen">
+    ${sum.rabattBetrag ? `<tr><td>Zwischensumme</td><td class="d-rechts">${euro(sum.nettoRoh)}</td></tr>
+         <tr><td>Rabatt</td><td class="d-rechts">−${euro(sum.rabattBetrag)}</td></tr>` : ""}
     ${e.kleinunternehmer
-      ? `<tr class="d-brutto"><td>Gesamtbetrag</td><td class="d-rechts">${euro(netto)}</td></tr>
+      ? `<tr class="d-brutto"><td>Gesamtbetrag</td><td class="d-rechts">${euro(sum.netto)}</td></tr>
          <tr><td colspan="2" style="font-size:10px">Kein Ausweis von Umsatzsteuer (Kleinunternehmerregelung § 19 UStG)</td></tr>`
-      : `<tr><td>Summe netto</td><td class="d-rechts">${euro(netto)}</td></tr>
-         <tr><td>zzgl. ${esc(e.mwst)} % USt</td><td class="d-rechts">${euro(mwstBetrag)}</td></tr>
-         <tr class="d-brutto"><td>Gesamtbetrag</td><td class="d-rechts">${euro(brutto)}</td></tr>`}
+      : `<tr><td>Summe netto</td><td class="d-rechts">${euro(sum.netto)}</td></tr>
+         <tr><td>zzgl. ${esc(e.mwst)} % USt</td><td class="d-rechts">${euro(sum.ust)}</td></tr>
+         <tr class="d-brutto"><td>Gesamtbetrag</td><td class="d-rechts">${euro(sum.brutto)}</td></tr>`}
   </table>
 
   <p>${schluss}</p>
+  ${a.unterschrift ? `<div style="margin-top:24px"><img src="${a.unterschrift}" alt="Unterschrift" style="max-width:220px;border-bottom:1px solid #000"><br><span style="font-size:11px">Unterschrift Kunde (Abnahme)</span></div>` : ""}
 
   <div class="d-fuss">
     ${esc(e.firma || "")}${e.inhaber ? " · Inhaber: " + esc(e.inhaber) : ""}
@@ -1503,6 +1835,8 @@ function auftragSpeichernStill(id) {
   a.notizen = document.getElementById("a-notizen").value;
   a.positionen = bearbeitungsPositionen.filter((p) => p.bezeichnung.trim() !== "");
   a.zeiten = bearbeitungsZeiten.filter((z) => z.datum);
+  a.rabatt = { art: bearbeitungsRabatt.art, wert: Number(bearbeitungsRabatt.wert) || 0 };
+  a.unterschrift = bearbeitungsUnterschrift;
   bezahltAmPflegen(a, a);
   a.geaendertAm = new Date().toISOString();
   speichern();
@@ -1790,6 +2124,10 @@ function renderEinstellungen() {
     <label>Preisliste für den Notiz-Assistenten <span style="font-weight:400">(je Zeile: Begriff ; Preis ; Einheit)</span></label>
     <textarea id="e-preisliste" style="min-height:110px" placeholder="streichen ; 12,50 ; m²">${esc((e.preisliste || []).map((p) => p.begriff + " ; " + String(p.preis).replace(".", ",") + " ; " + p.einheit).join("\n"))}</textarea>
     <div class="hinweis">Taucht ein Begriff (z. B. „streichen“ oder „helfer“) in einer Notizzeile auf, setzt der Assistent automatisch diesen Preis ein. Preise unbedingt an den eigenen Betrieb anpassen.</div>
+
+    <label>📦 Materialliste <span style="font-weight:400">(je Zeile: Name ; Preis ; Einheit)</span></label>
+    <textarea id="e-materialliste" style="min-height:90px" placeholder="Wandfarbe weiß 10 l ; 45 ; Stk.&#10;Umzugskarton ; 2,50 ; Stk.">${esc((e.materialliste || []).map((m) => m.name + " ; " + String(m.preis).replace(".", ",") + " ; " + m.einheit).join("\n"))}</textarea>
+    <div class="hinweis">Dieses Material lässt sich im Auftrag über „📦 Material“ mit Menge als Position einfügen.</div>
     <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-size:.9rem">
       <input type="checkbox" id="e-kleinunternehmer" style="width:auto" ${e.kleinunternehmer ? "checked" : ""}>
       Kleinunternehmer nach § 19 UStG (keine Umsatzsteuer ausweisen)
@@ -1850,6 +2188,13 @@ function einstellungenSpeichern() {
       const teile = zeile.split(";").map((t) => t.trim());
       if (teile.length < 2 || !teile[0]) return null;
       return { begriff: teile[0], preis: zahlDe(teile[1]) || 0, einheit: teile[2] || "m²" };
+    })
+    .filter(Boolean);
+  e.materialliste = document.getElementById("e-materialliste").value.split(/\n/)
+    .map((zeile) => {
+      const teile = zeile.split(";").map((t) => t.trim());
+      if (teile.length < 2 || !teile[0]) return null;
+      return { name: teile[0], preis: zahlDe(teile[1]) || 0, einheit: teile[2] || "Stk." };
     })
     .filter(Boolean);
   const basisFeld = document.getElementById("e-serverbasis");

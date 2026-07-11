@@ -113,6 +113,17 @@ arbeitet unterwegs normal weiter und speichert alles lokal.
   teilen oder herunterladen) und als Browser-Druck — mit Firmenkopf,
   Kundenadresse, Von-/Nach-Adressen, Positionstabelle, Summenblock und
   automatisch fortlaufender, pro Auftrag stabiler Nummer (`2026-001`, …).
+- **Rabatt** je Auftrag (in % oder als €-Betrag) — wirkt korrekt auf
+  Netto, USt und Brutto und erscheint auf Angebot/Rechnung.
+- **Materialverwaltung:** Materialliste mit Preisen (Einstellungen);
+  im Auftrag über „📦 Material“ mit Menge als Position einfügen.
+- **Kunden-Unterschrift:** der Kunde unterschreibt die Abnahme direkt
+  auf dem Display; die Unterschrift erscheint auf Rechnung/Ausdruck
+  und im geteilten PDF.
+- **Wiederkehrende Termine (Serie):** aus einem Auftrag mit einem Klick
+  regelmäßige Folgetermine (wöchentlich bis vierteljährlich) anlegen —
+  praktisch für Wartung und Pflege.
+- **Auftrag duplizieren:** bestehenden Auftrag als Vorlage kopieren.
 - **Kleinunternehmer-Modus (§ 19 UStG)** umschaltbar; USt-Satz,
   Zahlungsziel und Stundensatz einstellbar.
 - **Kunden** mit Adresse, Kontakt, Notizen und allen Aufträgen.
