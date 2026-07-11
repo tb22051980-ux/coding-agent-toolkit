@@ -882,7 +882,8 @@ function auftragBearbeiten(id, vorbelegterKundeId) {
   <div class="dialog-fuss">
     ${id ? `<button class="gefahr klein" onclick="auftragLoeschen('${id}')">Löschen</button>` : "<span></span>"}
     <div class="rechtsgruppe">
-      ${id ? `<button class="sekundaer" onclick="dokumentAusgeben('${id}','angebot')">📄 Angebot</button>
+      ${id ? `<button class="sekundaer" onclick="auftragDuplizieren('${id}')" title="Als Vorlage für einen neuen Auftrag kopieren">⧉ Duplizieren</button>
+              <button class="sekundaer" onclick="dokumentAusgeben('${id}','angebot')">📄 Angebot</button>
               <button class="sekundaer" onclick="dokumentAusgeben('${id}','rechnung')">📄 Rechnung</button>` : ""}
       <button class="primaer" onclick="auftragSpeichern('${id || ""}')">Speichern</button>
     </div>
@@ -966,6 +967,32 @@ function auftragSpeichern(id) {
   speichern();
   dialogSchliessen();
   render();
+}
+
+// Bestehenden Auftrag als Vorlage kopieren: Leistungen/Preise bleiben,
+// alles Auftragsspezifische (Termin, Nummern, Fotos, Zeiten, Bezahlt)
+// wird geleert. Öffnet den neuen Auftrag direkt zum Bearbeiten.
+function auftragDuplizieren(id) {
+  const alt = daten.auftraege.find((x) => x.id === id);
+  if (!alt) return;
+  // Erst den offenen Bearbeitungsstand sichern, damit Änderungen mitkopiert werden
+  auftragSpeichernStill(id);
+  const kopie = {
+    id: uid(),
+    kundeId: alt.kundeId,
+    titel: (alt.titel || "").replace(/\s*\(Kopie\)$/, "") + " (Kopie)",
+    beschreibung: alt.beschreibung || "",
+    status: "anfrage",
+    termin: "", einsatzOrt: alt.einsatzOrt || "", zielOrt: alt.zielOrt || "",
+    positionen: JSON.parse(JSON.stringify(alt.positionen || [])),
+    zeiten: [], material: alt.material || "", notizen: alt.notizen || "",
+    fotos: [], angebotNr: "", rechnungNr: "", bezahltAm: "",
+    angelegtAm: heuteISO(), geaendertAm: new Date().toISOString(),
+  };
+  daten.auftraege.push(kopie);
+  speichern();
+  dialogSchliessen();
+  auftragBearbeiten(kopie.id);
 }
 
 function auftragLoeschen(id) {
