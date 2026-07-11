@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Malermeister – Auftragsverwaltung</title>
+<style>
+  :root {
+    --blau: #1d5c8f;
+    --blau-dunkel: #14415f;
+    --grau-hell: #f4f6f8;
+    --grau: #e2e7ec;
+    --text: #22303c;
+    --text-leise: #64748b;
+    --gruen: #1e7d46;
+    --gelb: #b45309;
+    --rot: #b91c1c;
+    --radius: 10px;
+    --schatten: 0 1px 3px rgba(0,0,0,.12);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--grau-hell);
+    color: var(--text);
+    font-size: 16px;
+    line-height: 1.45;
+  }
+
+  /* ---------- Kopf & Navigation ---------- */
+  header {
+    background: var(--blau);
+    color: #fff;
+    padding: 14px 16px 0;
+  }
+  header h1 { margin: 0 0 10px; font-size: 1.25rem; font-weight: 600; }
+  header h1 small { font-weight: 400; opacity: .8; font-size: .85rem; margin-left: 8px; }
+  nav { display: flex; gap: 4px; overflow-x: auto; }
+  nav button {
+    background: transparent; border: none; color: rgba(255,255,255,.85);
+    padding: 10px 16px; font-size: .95rem; cursor: pointer;
+    border-radius: 8px 8px 0 0; white-space: nowrap;
+  }
+  nav button.aktiv { background: var(--grau-hell); color: var(--text); font-weight: 600; }
+
+  main { max-width: 960px; margin: 0 auto; padding: 16px; }
+
+  /* ---------- Bausteine ---------- */
+  .karte {
+    background: #fff; border-radius: var(--radius); box-shadow: var(--schatten);
+    padding: 16px; margin-bottom: 12px;
+  }
+  .karte h2 { margin: 0 0 12px; font-size: 1.05rem; }
+  .zeile { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .waechst { flex: 1; min-width: 160px; }
+
+  .kacheln { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .kachel {
+    background: #fff; border-radius: var(--radius); box-shadow: var(--schatten);
+    padding: 14px; cursor: pointer; border: none; text-align: left; font: inherit;
+  }
+  .kachel .zahl { font-size: 1.7rem; font-weight: 700; color: var(--blau); }
+  .kachel .beschriftung { color: var(--text-leise); font-size: .85rem; }
+  .kachel.warn .zahl { color: var(--gelb); }
+
+  .badge {
+    display: inline-block; padding: 2px 10px; border-radius: 999px;
+    font-size: .78rem; font-weight: 600; white-space: nowrap;
+  }
+  .badge.anfrage   { background: #e0e7ff; color: #3730a3; }
+  .badge.angebot   { background: #fef3c7; color: #92400e; }
+  .badge.beauftragt{ background: #cffafe; color: #155e75; }
+  .badge.in_arbeit { background: #dbeafe; color: #1e40af; }
+  .badge.fertig    { background: #fee2e2; color: #991b1b; }
+  .badge.bezahlt   { background: #dcfce7; color: #166534; }
+
+  button.primaer, button.sekundaer, button.gefahr {
+    border: none; border-radius: 8px; padding: 10px 16px;
+    font-size: .95rem; cursor: pointer; font-weight: 600;
+  }
+  button.primaer { background: var(--blau); color: #fff; }
+  button.primaer:hover { background: var(--blau-dunkel); }
+  button.sekundaer { background: var(--grau); color: var(--text); }
+  button.gefahr { background: #fff; color: var(--rot); border: 1px solid var(--rot); }
+  button.klein { padding: 6px 10px; font-size: .82rem; }
+
+  input, select, textarea {
+    font: inherit; padding: 9px 10px; border: 1px solid #cbd5e1;
+    border-radius: 8px; width: 100%; background: #fff; color: var(--text);
+  }
+  textarea { resize: vertical; min-height: 70px; }
+  label { display: block; font-size: .82rem; font-weight: 600; color: var(--text-leise); margin: 10px 0 4px; }
+  label:first-child { margin-top: 0; }
+
+  .filterleiste { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0; }
+  .filterleiste button {
+    border: 1px solid var(--grau); background: #fff; border-radius: 999px;
+    padding: 6px 12px; font-size: .82rem; cursor: pointer; color: var(--text-leise);
+  }
+  .filterleiste button.aktiv { background: var(--blau); border-color: var(--blau); color: #fff; }
+
+  .listenkarte {
+    background: #fff; border-radius: var(--radius); box-shadow: var(--schatten);
+    padding: 14px 16px; margin-bottom: 10px; cursor: pointer;
+    display: flex; gap: 12px; align-items: center; justify-content: space-between;
+    border: none; width: 100%; text-align: left; font: inherit;
+  }
+  .listenkarte:hover { outline: 2px solid var(--blau); outline-offset: -2px; }
+  .listenkarte .titel { font-weight: 600; }
+  .listenkarte .unterzeile { color: var(--text-leise); font-size: .85rem; margin-top: 2px; }
+  .listenkarte .rechts { text-align: right; flex-shrink: 0; }
+  .listenkarte .summe { font-weight: 700; margin-top: 4px; }
+
+  .leer { text-align: center; color: var(--text-leise); padding: 32px 16px; }
+
+  /* ---------- Positions-Tabelle ---------- */
+  table.positionen { width: 100%; border-collapse: collapse; }
+  table.positionen th { text-align: left; font-size: .78rem; color: var(--text-leise); padding: 4px 6px 4px 0; }
+  table.positionen td { padding: 3px 6px 3px 0; vertical-align: middle; }
+  table.positionen input { padding: 7px 8px; }
+  table.positionen .sp-menge  { width: 70px; }
+  table.positionen .sp-einheit{ width: 78px; }
+  table.positionen .sp-preis  { width: 100px; }
+  table.positionen .sp-summe  { width: 90px; text-align: right; font-size: .9rem; white-space: nowrap; }
+  table.positionen .sp-loeschen { width: 34px; }
+  .pos-loeschen {
+    border: none; background: transparent; color: var(--rot);
+    font-size: 1.1rem; cursor: pointer; padding: 4px;
+  }
+  .summenblock { text-align: right; margin-top: 10px; font-size: .95rem; }
+  .summenblock .brutto { font-size: 1.15rem; font-weight: 700; }
+
+  /* ---------- Dialog ---------- */
+  dialog {
+    border: none; border-radius: var(--radius); box-shadow: 0 10px 40px rgba(0,0,0,.25);
+    padding: 0; width: min(680px, calc(100vw - 24px));
+    max-height: calc(100vh - 40px);
+  }
+  dialog::backdrop { background: rgba(15,23,42,.45); }
+  .dialog-kopf {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 18px; border-bottom: 1px solid var(--grau);
+    position: sticky; top: 0; background: #fff; z-index: 2;
+  }
+  .dialog-kopf h2 { margin: 0; font-size: 1.05rem; }
+  .dialog-kopf .schliessen { border: none; background: transparent; font-size: 1.4rem; cursor: pointer; color: var(--text-leise); }
+  .dialog-inhalt { padding: 16px 18px; }
+  .dialog-fuss {
+    display: flex; gap: 8px; justify-content: space-between; flex-wrap: wrap;
+    padding: 12px 18px; border-top: 1px solid var(--grau);
+    position: sticky; bottom: 0; background: #fff;
+  }
+  .dialog-fuss .rechtsgruppe { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+
+  .feldpaar { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+  @media (max-width: 520px) { .feldpaar { grid-template-columns: 1fr; } }
+
+  .hinweis { font-size: .82rem; color: var(--text-leise); margin-top: 6px; }
+
+  /* ---------- Druck (Angebot / Rechnung) ---------- */
+  #druckbereich { display: none; }
+  @media print {
+    body > *:not(#druckbereich) { display: none !important; }
+    #druckbereich { display: block; }
+    body { background: #fff; }
+  }
+  #druckbereich { font-size: 13px; color: #000; padding: 10mm; }
+  #druckbereich .d-kopf { display: flex; justify-content: space-between; margin-bottom: 28px; }
+  #druckbereich .d-firma { text-align: right; font-size: 12px; line-height: 1.5; }
+  #druckbereich .d-firma strong { font-size: 15px; }
+  #druckbereich .d-absenderzeile { font-size: 9px; text-decoration: underline; margin-bottom: 6px; }
+  #druckbereich h1 { font-size: 19px; margin: 24px 0 4px; }
+  #druckbereich .d-meta { font-size: 12px; color: #333; margin-bottom: 18px; }
+  #druckbereich table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  #druckbereich th { text-align: left; border-bottom: 1.5px solid #000; padding: 6px 4px; font-size: 12px; }
+  #druckbereich td { padding: 6px 4px; border-bottom: 1px solid #ddd; vertical-align: top; }
+  #druckbereich .d-rechts { text-align: right; white-space: nowrap; }
+  #druckbereich .d-summen { margin-left: auto; width: 260px; }
+  #druckbereich .d-summen td { border: none; padding: 3px 4px; }
+  #druckbereich .d-summen .d-brutto td { border-top: 1.5px solid #000; font-weight: 700; font-size: 14px; }
+  #druckbereich .d-fuss { margin-top: 32px; font-size: 11px; color: #333; line-height: 1.6; border-top: 1px solid #999; padding-top: 8px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🎨 Auftragsverwaltung <small id="kopf-firma"></small></h1>
+  <nav id="hauptnav"></nav>
+</header>
+
+<main id="inhalt"></main>
+
+<dialog id="dialog"></dialog>
+<div id="druckbereich"></div>
+
+<script>
+"use strict";
+
+/* =========================================================
+   Datenhaltung – alles liegt lokal im Browser (localStorage)
+   ========================================================= */
+const SPEICHER_SCHLUESSEL = "maler-auftragsverwaltung-v1";
+
+const STATUS = [
+  { id: "anfrage",    name: "Anfrage" },
+  { id: "angebot",    name: "Angebot erstellt" },
+  { id: "beauftragt", name: "Beauftragt" },
+  { id: "in_arbeit",  name: "In Arbeit" },
+  { id: "fertig",     name: "Fertig – Rechnung offen" },
+  { id: "bezahlt",    name: "Bezahlt" },
+];
+const EINHEITEN = ["m²", "Std.", "Stk.", "lfm", "pausch.", "Liter"];
+
+let daten = ladeDaten();
+
+function leererZustand() {
+  return {
+    einstellungen: {
+      firma: "", inhaber: "", strasse: "", plzOrt: "", telefon: "", email: "",
+      iban: "", steuernummer: "", mwst: 19, kleinunternehmer: false,
+      stundensatz: 55, zahlungsziel: 14, naechsteNummer: 1,
+    },
+    kunden: [],
+    auftraege: [],
+  };
+}
+
+function ladeDaten() {
+  try {
+    const roh = localStorage.getItem(SPEICHER_SCHLUESSEL);
+    if (!roh) return leererZustand();
+    const geparst = JSON.parse(roh);
+    // fehlende Felder aus Vorversionen auffüllen
+    return Object.assign(leererZustand(), geparst, {
+      einstellungen: Object.assign(leererZustand().einstellungen, geparst.einstellungen || {}),
+    });
+  } catch (e) {
+    console.error("Daten konnten nicht geladen werden:", e);
+    return leererZustand();
+  }
+}
+
+function speichern() {
+  localStorage.setItem(SPEICHER_SCHLUESSEL, JSON.stringify(daten));
+}
+
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+/* ---------- Hilfsfunktionen ---------- */
+const euro = (n) => (isFinite(n) ? n : 0).toLocaleString("de-DE", { style: "currency", currency: "EUR" });
+
+function datumFormat(iso) {
+  if (!iso) return "";
+  const d = new Date(iso + "T00:00:00");
+  return d.toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function heuteISO() {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function statusName(id) {
+  const s = STATUS.find((x) => x.id === id);
+  return s ? s.name : id;
+}
+
+function kunde(id) {
+  return daten.kunden.find((k) => k.id === id) || null;
+}
+
+function auftragNetto(a) {
+  return (a.positionen || []).reduce((s, p) => s + (Number(p.menge) || 0) * (Number(p.preis) || 0), 0);
+}
+
+function auftragBrutto(a) {
+  const netto = auftragNetto(a);
+  if (daten.einstellungen.kleinunternehmer) return netto;
+  return netto * (1 + (Number(daten.einstellungen.mwst) || 0) / 100);
+}
+
+function neueDokumentNummer() {
+  const jahr = new Date().getFullYear();
+  const nr = daten.einstellungen.naechsteNummer || 1;
+  daten.einstellungen.naechsteNummer = nr + 1;
+  return jahr + "-" + String(nr).padStart(3, "0");
+}
+
+/* =========================================================
+   Navigation & Rendern
+   ========================================================= */
+const ANSICHTEN = [
+  { id: "uebersicht", name: "Übersicht" },
+  { id: "auftraege",  name: "Aufträge" },
+  { id: "kunden",     name: "Kunden" },
+  { id: "einstellungen", name: "Einstellungen" },
+];
+let aktiveAnsicht = "uebersicht";
+let auftragsFilter = "offen"; // offen | alle | einzelne Status-IDs
+let auftragsSuche = "";
+let kundenSuche = "";
+
+function zeige(ansicht) {
+  aktiveAnsicht = ansicht;
+  render();
+}
+
+function render() {
+  document.getElementById("kopf-firma").textContent = daten.einstellungen.firma || "";
+  document.getElementById("hauptnav").innerHTML = ANSICHTEN.map((a) =>
+    `<button class="${a.id === aktiveAnsicht ? "aktiv" : ""}" onclick="zeige('${a.id}')">${a.name}</button>`
+  ).join("");
+
+  const inhalt = document.getElementById("inhalt");
+  if (aktiveAnsicht === "uebersicht") inhalt.innerHTML = renderUebersicht();
+  else if (aktiveAnsicht === "auftraege") inhalt.innerHTML = renderAuftraege();
+  else if (aktiveAnsicht === "kunden") inhalt.innerHTML = renderKunden();
+  else inhalt.innerHTML = renderEinstellungen();
+}
+
+/* ---------- Übersicht ---------- */
+function renderUebersicht() {
+  const a = daten.auftraege;
+  const anzahl = (ids) => a.filter((x) => ids.includes(x.status)).length;
+  const offeneRechnungen = a.filter((x) => x.status === "fertig");
+  const offenerBetrag = offeneRechnungen.reduce((s, x) => s + auftragBrutto(x), 0);
+
+  const heute = heuteISO();
+  const termine = a
+    .filter((x) => x.termin && x.termin >= heute && !["bezahlt"].includes(x.status))
+    .sort((x, y) => x.termin.localeCompare(y.termin))
+    .slice(0, 6);
+
+  const zuletzt = [...a].sort((x, y) => (y.geaendertAm || "").localeCompare(x.geaendertAm || "")).slice(0, 5);
+
+  let html = `
+  <div class="kacheln">
+    <button class="kachel" onclick="filterUndZeige('anfrage')"><div class="zahl">${anzahl(["anfrage", "angebot"])}</div><div class="beschriftung">Offene Anfragen / Angebote</div></button>
+    <button class="kachel" onclick="filterUndZeige('beauftragt')"><div class="zahl">${anzahl(["beauftragt"])}</div><div class="beschriftung">Beauftragt / geplant</div></button>
+    <button class="kachel" onclick="filterUndZeige('in_arbeit')"><div class="zahl">${anzahl(["in_arbeit"])}</div><div class="beschriftung">In Arbeit</div></button>
+    <button class="kachel warn" onclick="filterUndZeige('fertig')"><div class="zahl">${euro(offenerBetrag)}</div><div class="beschriftung">Offene Rechnungen (${offeneRechnungen.length})</div></button>
+  </div>
+
+  <div class="zeile" style="margin-bottom:16px">
+    <button class="primaer" onclick="auftragBearbeiten()">+ Neuer Auftrag</button>
+    <button class="sekundaer" onclick="kundeBearbeiten()">+ Neuer Kunde</button>
+  </div>
+
+  <div class="karte">
+    <h2>📅 Nächste Termine</h2>`;
+
+  if (termine.length === 0) {
+    html += `<div class="leer">Keine anstehenden Termine. Trage bei einem Auftrag einen Termin ein.</div>`;
+  } else {
+    html += termine.map((x) => auftragskarte(x, true)).join("");
+  }
+  html += `</div>
+
+  <div class="karte">
+    <h2>🕘 Zuletzt bearbeitet</h2>`;
+  html += zuletzt.length === 0
+    ? `<div class="leer">Noch keine Aufträge. Leg mit „+ Neuer Auftrag“ los${daten.kunden.length === 0 ? " – oder <a href=\"#\" onclick=\"beispieldatenLaden();return false\">Beispieldaten laden</a>, um dich umzusehen" : ""}.</div>`
+    : zuletzt.map((x) => auftragskarte(x)).join("");
+  html += `</div>`;
+  return html;
+}
+
+function filterUndZeige(status) {
+  auftragsFilter = status;
+  zeige("auftraege");
+}
+
+/* ---------- Aufträge ---------- */
+function auftragskarte(a, mitTermin) {
+  const k = kunde(a.kundeId);
+  const summe = auftragBrutto(a);
+  return `
+  <button class="listenkarte" onclick="auftragBearbeiten('${a.id}')">
+    <div>
+      <div class="titel">${esc(a.titel) || "(ohne Titel)"}</div>
+      <div class="unterzeile">${k ? esc(k.name) : "Kein Kunde"}${a.termin ? " · " + datumFormat(a.termin) : ""}</div>
+    </div>
+    <div class="rechts">
+      <span class="badge ${a.status}">${statusName(a.status)}</span>
+      ${summe > 0 ? `<div class="summe">${euro(summe)}</div>` : ""}
+    </div>
+  </button>`;
+}
+
+function gefilterteAuftraege() {
+  let liste = daten.auftraege.filter((a) => {
+    if (auftragsFilter === "offen") { if (a.status === "bezahlt") return false; }
+    else if (auftragsFilter !== "alle" && a.status !== auftragsFilter) return false;
+    if (auftragsSuche) {
+      const k = kunde(a.kundeId);
+      const heuhaufen = (a.titel + " " + (a.beschreibung || "") + " " + (k ? k.name : "")).toLowerCase();
+      if (!heuhaufen.includes(auftragsSuche.toLowerCase())) return false;
+    }
+    return true;
+  });
+  const reihenfolge = Object.fromEntries(STATUS.map((s, i) => [s.id, i]));
+  liste.sort((a, b) => (reihenfolge[a.status] - reihenfolge[b.status]) || (a.termin || "9999").localeCompare(b.termin || "9999"));
+  return liste;
+}
+
+function auftragslisteHtml() {
+  const liste = gefilterteAuftraege();
+  return liste.length === 0
+    ? `<div class="leer karte">Keine Aufträge in dieser Ansicht.</div>`
+    : liste.map((a) => auftragskarte(a)).join("");
+}
+
+function renderAuftraege() {
+  const filter = [
+    { id: "offen", name: "Alle offenen" },
+    ...STATUS,
+    { id: "alle", name: "Alle" },
+  ];
+  return `
+  <div class="zeile" style="margin-bottom:8px">
+    <input class="waechst" type="search" placeholder="Suchen (Titel, Kunde, Beschreibung)…" value="${esc(auftragsSuche)}"
+      oninput="auftragsSuche=this.value; document.getElementById('auftragsliste').innerHTML=auftragslisteHtml()">
+    <button class="primaer" onclick="auftragBearbeiten()">+ Neuer Auftrag</button>
+  </div>
+  <div class="filterleiste">
+    ${filter.map((f) => `<button class="${auftragsFilter === f.id ? "aktiv" : ""}" onclick="auftragsFilter='${f.id}';render()">${f.name}</button>`).join("")}
+  </div>
+  <div id="auftragsliste">${auftragslisteHtml()}</div>`;
+}
+
+/* ---------- Kunden ---------- */
+function kundenlisteHtml() {
+  let liste = daten.kunden.filter((k) => {
+    if (!kundenSuche) return true;
+    return (k.name + " " + (k.plzOrt || "") + " " + (k.telefon || "")).toLowerCase().includes(kundenSuche.toLowerCase());
+  });
+  liste.sort((a, b) => a.name.localeCompare(b.name, "de"));
+  if (liste.length === 0) return `<div class="leer karte">Noch keine Kunden angelegt bzw. keine Treffer.</div>`;
+  return liste.map((k) => {
+    const anzahl = daten.auftraege.filter((a) => a.kundeId === k.id).length;
+    return `
+    <button class="listenkarte" onclick="kundeBearbeiten('${k.id}')">
+      <div>
+        <div class="titel">${esc(k.name)}</div>
+        <div class="unterzeile">${esc([k.plzOrt, k.telefon].filter(Boolean).join(" · "))}</div>
+      </div>
+      <div class="rechts unterzeile">${anzahl} Auftr${anzahl === 1 ? "ag" : "äge"}</div>
+    </button>`;
+  }).join("");
+}
+
+function renderKunden() {
+  return `
+  <div class="zeile" style="margin-bottom:12px">
+    <input class="waechst" type="search" placeholder="Kunden suchen…" value="${esc(kundenSuche)}"
+      oninput="kundenSuche=this.value; document.getElementById('kundenliste').innerHTML=kundenlisteHtml()">
+    <button class="primaer" onclick="kundeBearbeiten()">+ Neuer Kunde</button>
+  </div>
+  <div id="kundenliste">${kundenlisteHtml()}</div>`;
+}
+
+/* =========================================================
+   Dialoge
+   ========================================================= */
+const dialog = document.getElementById("dialog");
+
+function dialogOeffnen(html) {
+  dialog.innerHTML = html;
+  dialog.showModal();
+}
+function dialogSchliessen() {
+  dialog.close();
+  dialog.innerHTML = "";
+}
+dialog.addEventListener("click", (e) => { if (e.target === dialog) dialogSchliessen(); });
+
+/* ---------- Kunde bearbeiten ---------- */
+function kundeBearbeiten(id) {
+  const k = id ? kunde(id) : { id: "", name: "", strasse: "", plzOrt: "", telefon: "", email: "", notizen: "" };
+  if (!k) return;
+  const auftraegeDesKunden = id ? daten.auftraege.filter((a) => a.kundeId === id) : [];
+
+  dialogOeffnen(`
+  <div class="dialog-kopf">
+    <h2>${id ? "Kunde bearbeiten" : "Neuer Kunde"}</h2>
+    <button class="schliessen" onclick="dialogSchliessen()" aria-label="Schließen">×</button>
+  </div>
+  <div class="dialog-inhalt">
+    <label>Name *</label><input id="k-name" value="${esc(k.name)}">
+    <div class="feldpaar">
+      <div><label>Straße, Hausnummer</label><input id="k-strasse" value="${esc(k.strasse)}"></div>
+      <div><label>PLZ, Ort</label><input id="k-plzort" value="${esc(k.plzOrt)}"></div>
+      <div><label>Telefon</label><input id="k-telefon" value="${esc(k.telefon)}" type="tel"></div>
+      <div><label>E-Mail</label><input id="k-email" value="${esc(k.email)}" type="email"></div>
+    </div>
+    <label>Notizen</label><textarea id="k-notizen">${esc(k.notizen)}</textarea>
+    ${auftraegeDesKunden.length ? `<label>Aufträge dieses Kunden</label>` + auftraegeDesKunden.map((a) => auftragskarte(a)).join("") : ""}
+  </div>
+  <div class="dialog-fuss">
+    ${id ? `<button class="gefahr klein" onclick="kundeLoeschen('${id}')">Löschen</button>` : "<span></span>"}
+    <div class="rechtsgruppe">
+      ${id ? `<button class="sekundaer" onclick="dialogSchliessen();auftragBearbeiten(null,'${id}')">+ Auftrag für diesen Kunden</button>` : ""}
+      <button class="primaer" onclick="kundeSpeichern('${id || ""}')">Speichern</button>
+    </div>
+  </div>`);
+  document.getElementById("k-name").focus();
+}
+
+function kundeSpeichern(id) {
+  const name = document.getElementById("k-name").value.trim();
+  if (!name) { alert("Bitte einen Namen eingeben."); return; }
+  const werte = {
+    name,
+    strasse: document.getElementById("k-strasse").value.trim(),
+    plzOrt: document.getElementById("k-plzort").value.trim(),
+    telefon: document.getElementById("k-telefon").value.trim(),
+    email: document.getElementById("k-email").value.trim(),
+    notizen: document.getElementById("k-notizen").value,
+  };
+  if (id) Object.assign(kunde(id), werte);
+  else daten.kunden.push(Object.assign({ id: uid(), angelegtAm: heuteISO() }, werte));
+  speichern();
+  dialogSchliessen();
+  render();
+}
+
+function kundeLoeschen(id) {
+  const anzahl = daten.auftraege.filter((a) => a.kundeId === id).length;
+  const frage = anzahl
+    ? `Diesen Kunden und seine ${anzahl} Auftr${anzahl === 1 ? "ag" : "äge"} wirklich löschen?`
+    : "Diesen Kunden wirklich löschen?";
+  if (!confirm(frage)) return;
+  daten.auftraege = daten.auftraege.filter((a) => a.kundeId !== id);
+  daten.kunden = daten.kunden.filter((k) => k.id !== id);
+  speichern();
+  dialogSchliessen();
+  render();
+}
+
+/* ---------- Auftrag bearbeiten ---------- */
+let bearbeitungsPositionen = [];
+
+function auftragBearbeiten(id, vorbelegterKundeId) {
+  const a = id
+    ? daten.auftraege.find((x) => x.id === id)
+    : { id: "", kundeId: vorbelegterKundeId || "", titel: "", beschreibung: "", status: "anfrage",
+        termin: "", positionen: [], material: "", notizen: "", angebotNr: "", rechnungNr: "" };
+  if (!a) return;
+  bearbeitungsPositionen = JSON.parse(JSON.stringify(a.positionen || []));
+  if (bearbeitungsPositionen.length === 0) bearbeitungsPositionen.push({ bezeichnung: "", menge: 1, einheit: "m²", preis: "" });
+
+  dialogOeffnen(`
+  <div class="dialog-kopf">
+    <h2>${id ? "Auftrag bearbeiten" : "Neuer Auftrag"}</h2>
+    <button class="schliessen" onclick="dialogSchliessen()" aria-label="Schließen">×</button>
+  </div>
+  <div class="dialog-inhalt">
+    <div class="feldpaar">
+      <div>
+        <label>Kunde *</label>
+        <select id="a-kunde">
+          <option value="">– bitte wählen –</option>
+          ${[...daten.kunden].sort((x, y) => x.name.localeCompare(y.name, "de"))
+            .map((k) => `<option value="${k.id}" ${k.id === a.kundeId ? "selected" : ""}>${esc(k.name)}</option>`).join("")}
+        </select>
+        <div class="hinweis">Kunde fehlt? <a href="#" onclick="dialogSchliessen();kundeBearbeiten();return false">Neu anlegen</a>, dann Auftrag erstellen.</div>
+      </div>
+      <div>
+        <label>Status</label>
+        <select id="a-status">${STATUS.map((s) => `<option value="${s.id}" ${s.id === a.status ? "selected" : ""}>${s.name}</option>`).join("")}</select>
+      </div>
+    </div>
+    <label>Titel * <span style="font-weight:400">(z. B. „Wohnung streichen, 3 Zimmer“)</span></label>
+    <input id="a-titel" value="${esc(a.titel)}">
+    <div class="feldpaar">
+      <div><label>Termin / Baubeginn</label><input id="a-termin" type="date" value="${esc(a.termin)}"></div>
+      <div><label>Beschreibung / Absprachen</label><textarea id="a-beschreibung" style="min-height:44px">${esc(a.beschreibung)}</textarea></div>
+    </div>
+
+    <label>Positionen (für Angebot / Rechnung)</label>
+    <table class="positionen">
+      <thead><tr><th>Leistung</th><th>Menge</th><th>Einheit</th><th>€/Einheit</th><th style="text-align:right">Summe</th><th></th></tr></thead>
+      <tbody id="a-positionen"></tbody>
+    </table>
+    <button class="sekundaer klein" onclick="positionHinzufuegen()">+ Position</button>
+    <div class="summenblock" id="a-summen"></div>
+
+    <div class="feldpaar">
+      <div><label>Material / Einkaufsliste</label><textarea id="a-material">${esc(a.material)}</textarea></div>
+      <div><label>Interne Notizen</label><textarea id="a-notizen">${esc(a.notizen)}</textarea></div>
+    </div>
+    ${a.angebotNr || a.rechnungNr ? `<div class="hinweis">${a.angebotNr ? "Angebot Nr. " + esc(a.angebotNr) : ""}${a.angebotNr && a.rechnungNr ? " · " : ""}${a.rechnungNr ? "Rechnung Nr. " + esc(a.rechnungNr) : ""}</div>` : ""}
+  </div>
+  <div class="dialog-fuss">
+    ${id ? `<button class="gefahr klein" onclick="auftragLoeschen('${id}')">Löschen</button>` : "<span></span>"}
+    <div class="rechtsgruppe">
+      ${id ? `<button class="sekundaer" onclick="dokumentDrucken('${id}','angebot')">Angebot drucken</button>
+              <button class="sekundaer" onclick="dokumentDrucken('${id}','rechnung')">Rechnung drucken</button>` : ""}
+      <button class="primaer" onclick="auftragSpeichern('${id || ""}')">Speichern</button>
+    </div>
+  </div>`);
+  positionenRendern();
+  document.getElementById("a-titel").focus();
+}
+
+function positionenRendern() {
+  const tbody = document.getElementById("a-positionen");
+  tbody.innerHTML = bearbeitungsPositionen.map((p, i) => {
+    const summe = (Number(p.menge) || 0) * (Number(p.preis) || 0);
+    return `
+    <tr>
+      <td><input value="${esc(p.bezeichnung)}" placeholder="z. B. Wände u. Decken streichen" oninput="positionAendern(${i},'bezeichnung',this.value)"></td>
+      <td class="sp-menge"><input type="number" step="0.01" min="0" value="${esc(p.menge)}" oninput="positionAendern(${i},'menge',this.value)"></td>
+      <td class="sp-einheit"><select onchange="positionAendern(${i},'einheit',this.value)">${EINHEITEN.map((e) => `<option ${e === p.einheit ? "selected" : ""}>${e}</option>`).join("")}</select></td>
+      <td class="sp-preis"><input type="number" step="0.01" min="0" value="${esc(p.preis)}" oninput="positionAendern(${i},'preis',this.value)"></td>
+      <td class="sp-summe">${summe ? euro(summe) : "–"}</td>
+      <td class="sp-loeschen"><button class="pos-loeschen" title="Position entfernen" onclick="positionEntfernen(${i})">🗑</button></td>
+    </tr>`;
+  }).join("");
+
+  const netto = bearbeitungsPositionen.reduce((s, p) => s + (Number(p.menge) || 0) * (Number(p.preis) || 0), 0);
+  const e = daten.einstellungen;
+  const mwstBetrag = e.kleinunternehmer ? 0 : netto * (Number(e.mwst) || 0) / 100;
+  document.getElementById("a-summen").innerHTML = e.kleinunternehmer
+    ? `<div class="brutto">Gesamt: ${euro(netto)}</div><div class="hinweis">Kein USt-Ausweis (Kleinunternehmer § 19 UStG)</div>`
+    : `Netto: ${euro(netto)} · zzgl. ${e.mwst} % USt: ${euro(mwstBetrag)}<div class="brutto">Gesamt: ${euro(netto + mwstBetrag)}</div>`;
+}
+
+function positionAendern(i, feld, wert) {
+  bearbeitungsPositionen[i][feld] = wert;
+  // Nur Summen aktualisieren, ohne die Eingabefelder neu zu bauen (Fokus behalten)
+  const zeile = document.querySelectorAll("#a-positionen tr")[i];
+  const summe = (Number(bearbeitungsPositionen[i].menge) || 0) * (Number(bearbeitungsPositionen[i].preis) || 0);
+  if (zeile) zeile.querySelector(".sp-summe").textContent = summe ? euro(summe) : "–";
+  const netto = bearbeitungsPositionen.reduce((s, p) => s + (Number(p.menge) || 0) * (Number(p.preis) || 0), 0);
+  const e = daten.einstellungen;
+  const mwstBetrag = e.kleinunternehmer ? 0 : netto * (Number(e.mwst) || 0) / 100;
+  document.getElementById("a-summen").innerHTML = e.kleinunternehmer
+    ? `<div class="brutto">Gesamt: ${euro(netto)}</div><div class="hinweis">Kein USt-Ausweis (Kleinunternehmer § 19 UStG)</div>`
+    : `Netto: ${euro(netto)} · zzgl. ${e.mwst} % USt: ${euro(mwstBetrag)}<div class="brutto">Gesamt: ${euro(netto + mwstBetrag)}</div>`;
+}
+
+function positionHinzufuegen() {
+  bearbeitungsPositionen.push({ bezeichnung: "", menge: 1, einheit: "m²", preis: "" });
+  positionenRendern();
+}
+
+function positionEntfernen(i) {
+  bearbeitungsPositionen.splice(i, 1);
+  positionenRendern();
+}
+
+function auftragSpeichern(id) {
+  const kundeId = document.getElementById("a-kunde").value;
+  const titel = document.getElementById("a-titel").value.trim();
+  if (!kundeId) { alert("Bitte einen Kunden wählen (oder zuerst anlegen)."); return; }
+  if (!titel) { alert("Bitte einen Titel eingeben."); return; }
+
+  const werte = {
+    kundeId, titel,
+    status: document.getElementById("a-status").value,
+    termin: document.getElementById("a-termin").value,
+    beschreibung: document.getElementById("a-beschreibung").value,
+    material: document.getElementById("a-material").value,
+    notizen: document.getElementById("a-notizen").value,
+    positionen: bearbeitungsPositionen.filter((p) => p.bezeichnung.trim() !== ""),
+    geaendertAm: new Date().toISOString(),
+  };
+  if (id) Object.assign(daten.auftraege.find((x) => x.id === id), werte);
+  else daten.auftraege.push(Object.assign({ id: uid(), angelegtAm: heuteISO(), angebotNr: "", rechnungNr: "" }, werte));
+  speichern();
+  dialogSchliessen();
+  render();
+}
+
+function auftragLoeschen(id) {
+  if (!confirm("Diesen Auftrag wirklich löschen?")) return;
+  daten.auftraege = daten.auftraege.filter((x) => x.id !== id);
+  speichern();
+  dialogSchliessen();
+  render();
+}
+
+/* =========================================================
+   Angebot / Rechnung drucken
+   ========================================================= */
+function dokumentDrucken(id, art) {
+  // Erst speichern, damit der Ausdruck den aktuellen Stand zeigt
+  auftragSpeichernStill(id);
+  const a = daten.auftraege.find((x) => x.id === id);
+  if (!a) return;
+  if (!a.positionen || a.positionen.length === 0) { alert("Bitte zuerst mindestens eine Position mit Leistung eintragen."); return; }
+
+  const e = daten.einstellungen;
+  const k = kunde(a.kundeId);
+
+  // Dokumentnummer nur einmal vergeben, danach wiederverwenden
+  const nummernFeld = art === "angebot" ? "angebotNr" : "rechnungNr";
+  if (!a[nummernFeld]) { a[nummernFeld] = neueDokumentNummer(); speichern(); }
+  const nummer = a[nummernFeld];
+
+  const netto = auftragNetto(a);
+  const mwstBetrag = e.kleinunternehmer ? 0 : netto * (Number(e.mwst) || 0) / 100;
+  const brutto = netto + mwstBetrag;
+  const heute = new Date().toLocaleDateString("de-DE");
+
+  const titelzeile = art === "angebot" ? `Angebot Nr. ${esc(nummer)}` : `Rechnung Nr. ${esc(nummer)}`;
+  const schluss = art === "angebot"
+    ? `Dieses Angebot ist 30 Tage gültig. Ich freue mich auf Ihren Auftrag!`
+    : (e.kleinunternehmer
+        ? `Gemäß § 19 UStG wird keine Umsatzsteuer berechnet. Bitte überweisen Sie den Betrag innerhalb von ${e.zahlungsziel || 14} Tagen${e.iban ? " auf das unten genannte Konto" : ""}. Vielen Dank für Ihren Auftrag!`
+        : `Bitte überweisen Sie den Betrag innerhalb von ${e.zahlungsziel || 14} Tagen${e.iban ? " auf das unten genannte Konto" : ""}. Vielen Dank für Ihren Auftrag!`);
+
+  document.getElementById("druckbereich").innerHTML = `
+  <div class="d-kopf">
+    <div>
+      <div class="d-absenderzeile">${esc([e.firma || e.inhaber, e.strasse, e.plzOrt].filter(Boolean).join(" · "))}</div>
+      <div style="margin-top:14px">
+        ${k ? `${esc(k.name)}<br>${esc(k.strasse || "")}<br>${esc(k.plzOrt || "")}` : ""}
+      </div>
+    </div>
+    <div class="d-firma">
+      <strong>${esc(e.firma || "Malermeisterbetrieb")}</strong><br>
+      ${e.inhaber ? "Inhaber: " + esc(e.inhaber) + "<br>" : ""}
+      ${e.strasse ? esc(e.strasse) + "<br>" : ""}
+      ${e.plzOrt ? esc(e.plzOrt) + "<br>" : ""}
+      ${e.telefon ? "Tel.: " + esc(e.telefon) + "<br>" : ""}
+      ${e.email ? esc(e.email) : ""}
+    </div>
+  </div>
+
+  <h1>${titelzeile}</h1>
+  <div class="d-meta">Datum: ${heute}${a.titel ? " · Bauvorhaben: " + esc(a.titel) : ""}</div>
+  ${a.beschreibung ? `<p>${esc(a.beschreibung)}</p>` : ""}
+
+  <table>
+    <thead><tr><th style="width:30px">Pos.</th><th>Leistung</th><th class="d-rechts">Menge</th><th class="d-rechts">Einzelpreis</th><th class="d-rechts">Gesamt</th></tr></thead>
+    <tbody>
+      ${a.positionen.map((p, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${esc(p.bezeichnung)}</td>
+        <td class="d-rechts">${esc(p.menge)} ${esc(p.einheit)}</td>
+        <td class="d-rechts">${euro(Number(p.preis) || 0)}</td>
+        <td class="d-rechts">${euro((Number(p.menge) || 0) * (Number(p.preis) || 0))}</td>
+      </tr>`).join("")}
+    </tbody>
+  </table>
+
+  <table class="d-summen">
+    ${e.kleinunternehmer
+      ? `<tr class="d-brutto"><td>Gesamtbetrag</td><td class="d-rechts">${euro(netto)}</td></tr>
+         <tr><td colspan="2" style="font-size:10px">Kein Ausweis von Umsatzsteuer (Kleinunternehmerregelung § 19 UStG)</td></tr>`
+      : `<tr><td>Summe netto</td><td class="d-rechts">${euro(netto)}</td></tr>
+         <tr><td>zzgl. ${esc(e.mwst)} % USt</td><td class="d-rechts">${euro(mwstBetrag)}</td></tr>
+         <tr class="d-brutto"><td>Gesamtbetrag</td><td class="d-rechts">${euro(brutto)}</td></tr>`}
+  </table>
+
+  <p>${schluss}</p>
+
+  <div class="d-fuss">
+    ${esc(e.firma || "")}${e.inhaber ? " · Inhaber: " + esc(e.inhaber) : ""}
+    ${e.steuernummer ? " · Steuernummer: " + esc(e.steuernummer) : ""}
+    ${e.iban ? "<br>Bankverbindung: IBAN " + esc(e.iban) : ""}
+  </div>`;
+
+  window.print();
+}
+
+// Formularstand des offenen Dialogs in den Auftrag übernehmen, ohne den Dialog zu schließen
+function auftragSpeichernStill(id) {
+  const a = daten.auftraege.find((x) => x.id === id);
+  if (!a || !document.getElementById("a-titel")) return;
+  a.kundeId = document.getElementById("a-kunde").value || a.kundeId;
+  a.titel = document.getElementById("a-titel").value.trim() || a.titel;
+  a.status = document.getElementById("a-status").value;
+  a.termin = document.getElementById("a-termin").value;
+  a.beschreibung = document.getElementById("a-beschreibung").value;
+  a.material = document.getElementById("a-material").value;
+  a.notizen = document.getElementById("a-notizen").value;
+  a.positionen = bearbeitungsPositionen.filter((p) => p.bezeichnung.trim() !== "");
+  a.geaendertAm = new Date().toISOString();
+  speichern();
+}
+
+/* =========================================================
+   Einstellungen, Sicherung, Beispieldaten
+   ========================================================= */
+function renderEinstellungen() {
+  const e = daten.einstellungen;
+  return `
+  <div class="karte">
+    <h2>Meine Firmendaten <span style="font-weight:400;font-size:.82rem;color:var(--text-leise)">(erscheinen auf Angebot und Rechnung)</span></h2>
+    <div class="feldpaar">
+      <div><label>Firmenname</label><input id="e-firma" value="${esc(e.firma)}" placeholder="Malermeister Max Mustermann"></div>
+      <div><label>Inhaber</label><input id="e-inhaber" value="${esc(e.inhaber)}"></div>
+      <div><label>Straße, Hausnummer</label><input id="e-strasse" value="${esc(e.strasse)}"></div>
+      <div><label>PLZ, Ort</label><input id="e-plzort" value="${esc(e.plzOrt)}"></div>
+      <div><label>Telefon</label><input id="e-telefon" value="${esc(e.telefon)}"></div>
+      <div><label>E-Mail</label><input id="e-email" value="${esc(e.email)}"></div>
+      <div><label>IBAN</label><input id="e-iban" value="${esc(e.iban)}"></div>
+      <div><label>Steuernummer</label><input id="e-steuernummer" value="${esc(e.steuernummer)}"></div>
+    </div>
+    <div class="feldpaar">
+      <div><label>Umsatzsteuersatz (%)</label><input id="e-mwst" type="number" step="1" min="0" value="${esc(e.mwst)}"></div>
+      <div><label>Zahlungsziel (Tage)</label><input id="e-zahlungsziel" type="number" step="1" min="0" value="${esc(e.zahlungsziel)}"></div>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-size:.9rem">
+      <input type="checkbox" id="e-kleinunternehmer" style="width:auto" ${e.kleinunternehmer ? "checked" : ""}>
+      Kleinunternehmer nach § 19 UStG (keine Umsatzsteuer ausweisen)
+    </label>
+    <div style="margin-top:14px"><button class="primaer" onclick="einstellungenSpeichern()">Speichern</button></div>
+  </div>
+
+  <div class="karte">
+    <h2>💾 Datensicherung</h2>
+    <p class="hinweis" style="margin-top:0">Alle Daten liegen nur in diesem Browser auf diesem Gerät. Mach regelmäßig eine Sicherung –
+    besonders bevor du den Browser-Verlauf/Websitedaten löschst oder das Gerät wechselst.</p>
+    <div class="zeile">
+      <button class="sekundaer" onclick="sicherungExportieren()">Sicherung herunterladen</button>
+      <button class="sekundaer" onclick="document.getElementById('e-import').click()">Sicherung einspielen</button>
+      <input type="file" id="e-import" accept=".json,application/json" style="display:none" onchange="sicherungImportieren(this)">
+    </div>
+  </div>
+
+  <div class="karte">
+    <h2>⚠️ Alles zurücksetzen</h2>
+    <div class="zeile">
+      <button class="gefahr" onclick="allesLoeschen()">Alle Daten löschen</button>
+      ${daten.kunden.length === 0 && daten.auftraege.length === 0 ? `<button class="sekundaer" onclick="beispieldatenLaden()">Beispieldaten laden</button>` : ""}
+    </div>
+  </div>`;
+}
+
+function einstellungenSpeichern() {
+  const e = daten.einstellungen;
+  e.firma = document.getElementById("e-firma").value.trim();
+  e.inhaber = document.getElementById("e-inhaber").value.trim();
+  e.strasse = document.getElementById("e-strasse").value.trim();
+  e.plzOrt = document.getElementById("e-plzort").value.trim();
+  e.telefon = document.getElementById("e-telefon").value.trim();
+  e.email = document.getElementById("e-email").value.trim();
+  e.iban = document.getElementById("e-iban").value.trim();
+  e.steuernummer = document.getElementById("e-steuernummer").value.trim();
+  e.mwst = Number(document.getElementById("e-mwst").value) || 0;
+  e.zahlungsziel = Number(document.getElementById("e-zahlungsziel").value) || 14;
+  e.kleinunternehmer = document.getElementById("e-kleinunternehmer").checked;
+  speichern();
+  render();
+  alert("Einstellungen gespeichert.");
+}
+
+function sicherungExportieren() {
+  const blob = new Blob([JSON.stringify(daten, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "maler-auftraege-sicherung-" + heuteISO() + ".json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function sicherungImportieren(eingabe) {
+  const datei = eingabe.files[0];
+  if (!datei) return;
+  const leser = new FileReader();
+  leser.onload = () => {
+    try {
+      const geparst = JSON.parse(leser.result);
+      if (!geparst || !Array.isArray(geparst.kunden) || !Array.isArray(geparst.auftraege)) {
+        throw new Error("Unerwartetes Format");
+      }
+      if (!confirm("Achtung: Die aktuelle Datenbank wird durch die Sicherung ersetzt. Fortfahren?")) return;
+      daten = Object.assign(leererZustand(), geparst, {
+        einstellungen: Object.assign(leererZustand().einstellungen, geparst.einstellungen || {}),
+      });
+      speichern();
+      render();
+      alert("Sicherung erfolgreich eingespielt.");
+    } catch (err) {
+      alert("Diese Datei ist keine gültige Sicherung: " + err.message);
+    } finally {
+      eingabe.value = "";
+    }
+  };
+  leser.readAsText(datei);
+}
+
+function allesLoeschen() {
+  if (!confirm("Wirklich ALLE Kunden, Aufträge und Einstellungen löschen?")) return;
+  if (!confirm("Letzte Warnung: Ohne Sicherung sind die Daten unwiederbringlich weg. Trotzdem löschen?")) return;
+  daten = leererZustand();
+  speichern();
+  render();
+}
+
+function beispieldatenLaden() {
+  const k1 = uid(), k2 = uid();
+  daten.kunden.push(
+    { id: k1, name: "Familie Schneider", strasse: "Lindenweg 12", plzOrt: "50823 Köln", telefon: "0221 555123", email: "", notizen: "Schlüssel beim Nachbarn (Nr. 14).", angelegtAm: heuteISO() },
+    { id: k2, name: "Hausverwaltung Berger GmbH", strasse: "Ringstraße 4", plzOrt: "50667 Köln", telefon: "0221 999888", email: "info@berger-hv.example", notizen: "Rechnungen immer mit Objektnummer.", angelegtAm: heuteISO() },
+  );
+  const inEinerWoche = new Date(Date.now() + 7 * 86400000);
+  const terminISO = inEinerWoche.toISOString().slice(0, 10);
+  daten.auftraege.push(
+    {
+      id: uid(), kundeId: k1, titel: "Wohnzimmer und Flur streichen", status: "beauftragt",
+      termin: terminISO, beschreibung: "Wände weiß (2× streichen), Decke inkl. Rissverspachtelung.",
+      positionen: [
+        { bezeichnung: "Wände spachteln, grundieren und 2× streichen", menge: 62, einheit: "m²", preis: 12.5 },
+        { bezeichnung: "Decke streichen inkl. Rissverspachtelung", menge: 28, einheit: "m²", preis: 14 },
+        { bezeichnung: "Abkleben und Abdecken", menge: 1, einheit: "pausch.", preis: 90 },
+      ],
+      material: "12 l Wandfarbe weiß\n2 Rollen Abdeckvlies\nAcryl, Klebeband",
+      notizen: "", angebotNr: "", rechnungNr: "", angelegtAm: heuteISO(), geaendertAm: new Date().toISOString(),
+    },
+    {
+      id: uid(), kundeId: k2, titel: "Treppenhaus Ringstraße 4 – Anstrich", status: "fertig",
+      termin: "", beschreibung: "Objekt-Nr. RB-104. Treppenhaus über 4 Etagen.",
+      positionen: [
+        { bezeichnung: "Treppenhauswände streichen", menge: 180, einheit: "m²", preis: 9.8 },
+        { bezeichnung: "Geländer lackieren", menge: 24, einheit: "lfm", preis: 18 },
+      ],
+      material: "", notizen: "Rechnung mit Objektnummer RB-104 stellen!",
+      angebotNr: "", rechnungNr: "", angelegtAm: heuteISO(), geaendertAm: new Date().toISOString(),
+    },
+  );
+  speichern();
+  render();
+}
+
+/* Start */
+render();
+</script>
+</body>
+</html>
