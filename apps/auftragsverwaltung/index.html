@@ -541,20 +541,26 @@ function kunde(id) {
   return daten.kunden.find((k) => k.id === id) || null;
 }
 
+const aufCent = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
 // Zentrale Summenberechnung inkl. Rabatt — von Dialog, Druck, PDF und
 // Umsatz gemeinsam genutzt, damit überall dieselben Zahlen stehen.
+// Alle Werte auf Cent gerundet, damit die angezeigten Zeilen exakt zum
+// Gesamtbetrag summieren (Rechnungspflicht: keine Cent-Differenzen).
 function summenBerechnen(positionen, rabatt) {
   const e = daten.einstellungen;
-  const nettoRoh = (positionen || []).reduce((s, p) => s + (Number(p.menge) || 0) * (Number(p.preis) || 0), 0);
+  // Jede Position auf Cent runden (so wie sie auch angezeigt wird) und summieren
+  const nettoRoh = aufCent((positionen || []).reduce((s, p) => s + aufCent((Number(p.menge) || 0) * (Number(p.preis) || 0)), 0));
   let rabattBetrag = 0;
   if (rabatt && Number(rabatt.wert)) {
     rabattBetrag = rabatt.art === "betrag"
       ? Math.min(Number(rabatt.wert), nettoRoh)
       : nettoRoh * (Number(rabatt.wert) || 0) / 100;
   }
-  const netto = nettoRoh - rabattBetrag;
-  const ust = e.kleinunternehmer ? 0 : netto * (Number(e.mwst) || 0) / 100;
-  return { nettoRoh, rabattBetrag, netto, ust, brutto: netto + ust };
+  rabattBetrag = aufCent(rabattBetrag);
+  const netto = aufCent(nettoRoh - rabattBetrag);
+  const ust = e.kleinunternehmer ? 0 : aufCent(netto * (Number(e.mwst) || 0) / 100);
+  return { nettoRoh, rabattBetrag, netto, ust, brutto: aufCent(netto + ust) };
 }
 
 function auftragNetto(a) {
@@ -847,6 +853,10 @@ function auftragBearbeiten(id, vorbelegterKundeId) {
   bearbeitungsZeiten = JSON.parse(JSON.stringify(a.zeiten || []));
   bearbeitungsRabatt = Object.assign({ art: "prozent", wert: 0 }, a.rabatt || {});
   bearbeitungsUnterschrift = a.unterschrift || "";
+  // Eine evtl. noch laufende Stoppuhr gehört nicht zu diesem Dialog — zurücksetzen,
+  // damit sie nicht fälschlich bei einem anderen Auftrag als laufend erscheint
+  stoppuhrStart = null;
+  if (stoppuhrTimer) { clearInterval(stoppuhrTimer); stoppuhrTimer = null; }
 
   dialogOeffnen(`
   <div class="dialog-kopf">
@@ -1132,6 +1142,9 @@ function unterschriftZeichnenEinrichten() {
   const ende = () => { zeichnet = false; };
   canvas.addEventListener("mousedown", start); canvas.addEventListener("mousemove", zeichne);
   window.addEventListener("mouseup", ende);
+  // window-Listener wieder entfernen, sobald der Unterschrift-Dialog schließt,
+  // damit sich über die Sitzung keine veralteten Handler ansammeln
+  dialog2.addEventListener("close", () => window.removeEventListener("mouseup", ende), { once: true });
   canvas.addEventListener("touchstart", start, { passive: false });
   canvas.addEventListener("touchmove", zeichne, { passive: false });
   canvas.addEventListener("touchend", ende);
@@ -1244,9 +1257,18 @@ function serieOeffnen(id) {
 
 function serieDatum(startISO, takt, index) {
   const d = new Date(startISO + "T00:00:00");
-  if (takt === "month") d.setMonth(d.getMonth() + index);
-  else if (takt === "quarter") d.setMonth(d.getMonth() + index * 3);
-  else d.setDate(d.getDate() + index * Number(takt));
+  if (takt === "month" || takt === "quarter") {
+    // Monatssprung mit Tages-Begrenzung, damit z. B. der 31. nicht in den
+    // Folgemonat überläuft (31.01 + 1 Monat → 28./29.02, nicht 03.03)
+    const schritt = takt === "quarter" ? 3 : 1;
+    const zielMonat = d.getMonth() + index * schritt;
+    const jahr = d.getFullYear() + Math.floor(zielMonat / 12);
+    const monat = ((zielMonat % 12) + 12) % 12;
+    const letzterTag = new Date(jahr, monat + 1, 0).getDate();
+    d.setFullYear(jahr, monat, Math.min(d.getDate(), letzterTag));
+  } else {
+    d.setDate(d.getDate() + index * Number(takt));
+  }
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 }
 
@@ -1494,6 +1516,18 @@ function renderUmsatz() {
 /* =========================================================
    Angebot / Rechnung: Daten sammeln, PDF erzeugen, teilen
    ========================================================= */
+// Zeichen, die WinAnsi/Latin-1 nicht kennt, lesbar auf Grundbuchstaben
+// abbilden — sonst stünde in kundenseitigen PDFs „?“ statt z. B. „Yılmaz“.
+const TRANSLIT = {
+  "ı": "i", "İ": "I", "ğ": "g", "Ğ": "G", "ş": "s", "Ş": "S",
+  "ł": "l", "Ł": "L", "ą": "a", "Ą": "A", "ę": "e", "Ę": "E",
+  "ż": "z", "Ż": "Z", "ź": "z", "Ź": "Z", "ć": "c", "Ć": "C",
+  "ń": "n", "Ń": "N", "ś": "s", "Ś": "S",
+  "č": "c", "Č": "C", "š": "s", "Š": "S", "ž": "z", "Ž": "Z",
+  "ř": "r", "Ř": "R", "ě": "e", "Ě": "E", "ů": "u", "Ů": "U",
+  "đ": "d", "Đ": "D",
+};
+
 // Zeichen nach WinAnsi (Latin-1 + € auf 0x80) für die PDF-Schrift Helvetica
 function winAnsiBytes(text) {
   const bytes = [];
@@ -1502,8 +1536,11 @@ function winAnsiBytes(text) {
     if (zeichen === "€") bytes.push(0x80);
     else if (cp === 0x2013 || cp === 0x2014) bytes.push(0x2D); // – — → -
     else if (cp === 0x201E || cp === 0x201C || cp === 0x201D) bytes.push(0x22); // „ " " → "
+    else if (cp === 0x2018 || cp === 0x2019) bytes.push(0x27); // ' ' → '
+    else if (cp === 0x2026) { bytes.push(0x2E, 0x2E, 0x2E); }   // … → ...
     else if (cp <= 0xFF) bytes.push(cp);
-    else bytes.push(0x3F); // ?
+    else if (TRANSLIT[zeichen]) for (const c of TRANSLIT[zeichen]) bytes.push(c.charCodeAt(0));
+    else bytes.push(0x3F); // unbekannt → ?
   }
   return bytes;
 }
@@ -1536,133 +1573,153 @@ function bildAlsJpegBytes(dataUrl, jw, jh) {
   });
 }
 
-// Bild-Zeilen (mit .bild = dataUrl) vorab zu JPEG-Bytes auflösen
-async function pdfBilderVorbereiten(zeilen) {
-  for (const z of zeilen) {
-    if (z.bild) {
-      try { z.jpeg = await bildAlsJpegBytes(z.bild, 360, 110); }
-      catch { z.jpeg = null; }
+// Bild-Zeilen (mit .bild = dataUrl) vorab zu JPEG-Bytes auflösen (über alle Seiten)
+async function pdfBilderVorbereiten(seiten) {
+  for (const zeilen of seiten) {
+    for (const z of zeilen) {
+      if (z.bild) {
+        try { z.jpeg = await bildAlsJpegBytes(z.bild, 360, 110); }
+        catch { z.jpeg = null; }
+      }
     }
   }
-  return zeilen;
+  return seiten;
 }
 
-// Minimaler, gültiger PDF-Erzeuger (A4, Helvetica; optional eingebettete
-// JPEG-Bilder). zeilen: {text,x,y,size,bold} oder {jpeg,x,y,w,h}
-function pdfErzeugen(zeilen) {
-  const bilder = zeilen.filter((z) => z.jpeg && z.jpeg.bytes);
-  let inhalt = "";
-  for (const z of zeilen) {
-    if (z.jpeg && z.jpeg.bytes) {
-      const idx = bilder.indexOf(z);
-      inhalt += `q ${z.w} 0 0 ${z.h} ${z.x} ${z.y} cm /Im${idx} Do Q\n`;
-    } else if (z.text !== undefined) {
-      const font = z.bold ? "F2" : "F1";
-      inhalt += `BT /${font} ${z.size || 10} Tf ${z.x} ${z.y} Td (${pdfEscape(bytesZuLatin1(winAnsiBytes(z.text)))}) Tj ET\n`;
+// Gültiger PDF-Erzeuger (A4, Helvetica; mehrere Seiten; optional eingebettete
+// JPEG-Bilder). seiten: Array von Seiten, je Seite {text,x,y,size,bold} oder {jpeg,x,y,w,h}
+function pdfErzeugen(seiten) {
+  // Objekte dynamisch nummerieren; jedes Objekt ist ein String oder
+  // { header, bytes, footer } (für binäre Bild-Streams).
+  const objs = [];
+  const add = (o) => { objs.push(o); return objs.length; }; // 1-basierte Objektnummer
+  add("PLATZHALTER_CATALOG"); // 1
+  add("PLATZHALTER_PAGES");   // 2
+  const fontF1 = add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+  const fontF2 = add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+
+  const seitenObjNummern = [];
+  for (const zeilen of seiten) {
+    const bilder = zeilen.filter((z) => z.jpeg && z.jpeg.bytes);
+    const bildNummern = bilder.map((b) => add({
+      header: `<< /Type /XObject /Subtype /Image /Width ${b.jpeg.jw} /Height ${b.jpeg.jh} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${b.jpeg.bytes.length} >>\nstream\n`,
+      bytes: b.jpeg.bytes, footer: "\nendstream",
+    }));
+    let inhalt = "";
+    for (const z of zeilen) {
+      if (z.jpeg && z.jpeg.bytes) {
+        const idx = bilder.indexOf(z);
+        inhalt += `q ${z.w} 0 0 ${z.h} ${z.x} ${z.y} cm /Im${idx} Do Q\n`;
+      } else if (z.text !== undefined) {
+        const font = z.bold ? "F2" : "F1";
+        inhalt += `BT /${font} ${z.size || 10} Tf ${z.x} ${z.y} Td (${pdfEscape(bytesZuLatin1(winAnsiBytes(z.text)))}) Tj ET\n`;
+      }
     }
+    const inhaltNum = add(`<< /Length ${winAnsiBytes(inhalt).length} >>\nstream\n${inhalt}endstream`);
+    const xobj = bilder.length ? "/XObject << " + bildNummern.map((n, i) => `/Im${i} ${n} 0 R`).join(" ") + " >>" : "";
+    seitenObjNummern.push(add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 ${fontF1} 0 R /F2 ${fontF2} 0 R >> ${xobj} >> /Contents ${inhaltNum} 0 R >>`));
   }
-  const xobjRes = bilder.map((b, i) => `/Im${i} ${7 + i} 0 R`).join(" ");
-  // Textobjekte (als Strings)
-  const textObjekte = [
-    "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> ${bilder.length ? "/XObject << " + xobjRes + " >>" : ""} >> /Contents 4 0 R >>`,
-    `<< /Length ${winAnsiBytes(inhalt).length} >>\nstream\n${inhalt}endstream`,
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
-  ];
+
+  objs[0] = "<< /Type /Catalog /Pages 2 0 R >>";
+  objs[1] = `<< /Type /Pages /Kids [${seitenObjNummern.map((n) => n + " 0 R").join(" ")}] /Count ${seitenObjNummern.length} >>`;
 
   // PDF byteweise aufbauen (Bilder sind binär)
   const teile = [];
   let laenge = 0;
   const offsets = [];
   const dazu = (s) => { const b = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i) & 0xFF; teile.push(b); laenge += b.length; };
-  const dazuBytes = (b) => { teile.push(b); laenge += b.length; };
 
   dazu("%PDF-1.4\n");
-  textObjekte.forEach((o, i) => { offsets.push(laenge); dazu(`${i + 1} 0 obj\n${o}\nendobj\n`); });
-  bilder.forEach((b, i) => {
+  objs.forEach((o, i) => {
     offsets.push(laenge);
-    dazu(`${7 + i} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${b.jpeg.jw} /Height ${b.jpeg.jh} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${b.jpeg.bytes.length} >>\nstream\n`);
-    dazuBytes(b.jpeg.bytes);
-    dazu("\nendstream\nendobj\n");
+    if (typeof o === "string") { dazu(`${i + 1} 0 obj\n${o}\nendobj\n`); }
+    else { dazu(`${i + 1} 0 obj\n${o.header}`); teile.push(o.bytes); laenge += o.bytes.length; dazu(`${o.footer}\nendobj\n`); }
   });
-  const anzahl = textObjekte.length + bilder.length;
   const xrefStart = laenge;
-  dazu(`xref\n0 ${anzahl + 1}\n0000000000 65535 f \n`);
+  dazu(`xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`);
   for (const off of offsets) dazu(String(off).padStart(10, "0") + " 00000 n \n");
-  dazu(`trailer\n<< /Size ${anzahl + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`);
+  dazu(`trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`);
   return new Blob(teile, { type: "application/pdf" });
 }
 
-// Sammelt die Zeilen für Angebot/Rechnung als PDF-Layout
+// Sammelt die Zeilen für Angebot/Rechnung als PDF-Layout — gibt ein
+// Array von Seiten zurück (Seitenumbruch bei vielen Positionen).
 function dokumentPdfZeilen(a, art, nummer) {
   const e = daten.einstellungen;
   const k = kunde(a.kundeId);
   const sum = summenBerechnen(a.positionen, a.rabatt);
   const heute = new Date().toLocaleDateString("de-DE");
-  const z = [];
-  let y = 800;
   const firmaName = e.firma || (BRANCHEN[e.branche] ? BRANCHEN[e.branche].name : "Betrieb");
+  const seiten = [[]];
+  let s = 0;
+  const zu = (obj) => seiten[s].push(obj);
+  const tabellenkopf = (yy) => {
+    zu({ text: "Pos.", x: 50, y: yy, size: 9, bold: true });
+    zu({ text: "Leistung", x: 85, y: yy, size: 9, bold: true });
+    zu({ text: "Menge", x: 330, y: yy, size: 9, bold: true });
+    zu({ text: "Einzel", x: 410, y: yy, size: 9, bold: true });
+    zu({ text: "Gesamt", x: 490, y: yy, size: 9, bold: true });
+  };
+
   // Kopf rechts: Firmendaten
   [firmaName, e.inhaber ? "Inhaber: " + e.inhaber : "", e.strasse, e.plzOrt, e.telefon ? "Tel.: " + e.telefon : "", e.email]
-    .filter(Boolean).forEach((zeile, i) => z.push({ text: zeile, x: 350, y: 800 - i * 13, size: 9, bold: i === 0 }));
+    .filter(Boolean).forEach((zeile, i) => zu({ text: zeile, x: 350, y: 800 - i * 13, size: 9, bold: i === 0 }));
   // Absender + Empfänger links
-  z.push({ text: [firmaName, e.strasse, e.plzOrt].filter(Boolean).join(" · "), x: 50, y: 800, size: 7 });
-  y = 770;
-  if (k) [k.name, k.strasse, k.plzOrt].filter(Boolean).forEach((zeile) => { z.push({ text: zeile, x: 50, y, size: 11 }); y -= 15; });
+  zu({ text: [firmaName, e.strasse, e.plzOrt].filter(Boolean).join(" · "), x: 50, y: 800, size: 7 });
+  let y = 770;
+  if (k) [k.name, k.strasse, k.plzOrt].filter(Boolean).forEach((zeile) => { zu({ text: zeile, x: 50, y, size: 11 }); y -= 15; });
   // Titel
   y = 690;
-  z.push({ text: (art === "angebot" ? "Angebot" : "Rechnung") + " Nr. " + nummer, x: 50, y, size: 17, bold: true });
+  zu({ text: (art === "angebot" ? "Angebot" : "Rechnung") + " Nr. " + nummer, x: 50, y, size: 17, bold: true });
   y -= 20;
-  z.push({ text: "Datum: " + heute + (a.titel ? "   ·   " + a.titel : ""), x: 50, y, size: 10 });
-  if (a.einsatzOrt) { y -= 14; z.push({ text: (a.zielOrt ? "Von: " + a.einsatzOrt + "   Nach: " + a.zielOrt : "Einsatzort: " + a.einsatzOrt), x: 50, y, size: 9 }); }
+  zu({ text: "Datum: " + heute + (a.titel ? "   ·   " + a.titel : ""), x: 50, y, size: 10 });
+  if (a.einsatzOrt) { y -= 14; zu({ text: (a.zielOrt ? "Von: " + a.einsatzOrt + "   Nach: " + a.zielOrt : "Einsatzort: " + a.einsatzOrt), x: 50, y, size: 9 }); }
   // Positionstabelle
   y -= 30;
-  z.push({ text: "Pos.", x: 50, y, size: 9, bold: true });
-  z.push({ text: "Leistung", x: 85, y, size: 9, bold: true });
-  z.push({ text: "Menge", x: 330, y, size: 9, bold: true });
-  z.push({ text: "Einzel", x: 410, y, size: 9, bold: true });
-  z.push({ text: "Gesamt", x: 490, y, size: 9, bold: true });
-  y -= 6;
+  tabellenkopf(y);
+  y -= 22;
   (a.positionen || []).forEach((p, i) => {
+    if (y < 120) { // Seite voll → neue Seite mit Tabellenkopf
+      seiten.push([]); s++; y = 800; tabellenkopf(y); y -= 22;
+    }
+    const g = aufCent((Number(p.menge) || 0) * (Number(p.preis) || 0));
+    zu({ text: String(i + 1), x: 50, y, size: 9 });
+    zu({ text: (p.bezeichnung || "").slice(0, 48), x: 85, y, size: 9 });
+    zu({ text: p.menge + " " + p.einheit, x: 330, y, size: 9 });
+    zu({ text: euro(Number(p.preis) || 0), x: 410, y, size: 9 });
+    zu({ text: euro(g), x: 490, y, size: 9 });
     y -= 16;
-    const g = (Number(p.menge) || 0) * (Number(p.preis) || 0);
-    z.push({ text: String(i + 1), x: 50, y, size: 9 });
-    z.push({ text: (p.bezeichnung || "").slice(0, 48), x: 85, y, size: 9 });
-    z.push({ text: p.menge + " " + p.einheit, x: 330, y, size: 9 });
-    z.push({ text: euro(Number(p.preis) || 0), x: 410, y, size: 9 });
-    z.push({ text: euro(g), x: 490, y, size: 9 });
   });
-  // Summen
-  y -= 26;
+  // Summen (brauchen ~90 pt inkl. Schlusstext); ggf. neue Seite
+  y -= 12;
+  if (y < 200) { seiten.push([]); s++; y = 780; }
   if (sum.rabattBetrag) {
-    z.push({ text: "Zwischensumme: " + euro(sum.nettoRoh), x: 380, y, size: 10 });
-    y -= 13; z.push({ text: "Rabatt: -" + euro(sum.rabattBetrag), x: 380, y, size: 10 });
+    zu({ text: "Zwischensumme: " + euro(sum.nettoRoh), x: 380, y, size: 10 });
+    y -= 13; zu({ text: "Rabatt: -" + euro(sum.rabattBetrag), x: 380, y, size: 10 });
     y -= 13;
   }
   if (e.kleinunternehmer) {
-    z.push({ text: "Gesamtbetrag: " + euro(sum.netto), x: 350, y, size: 12, bold: true });
-    y -= 14; z.push({ text: "Kein USt-Ausweis (§ 19 UStG)", x: 350, y, size: 8 });
+    zu({ text: "Gesamtbetrag: " + euro(sum.netto), x: 350, y, size: 12, bold: true });
+    y -= 14; zu({ text: "Kein USt-Ausweis (§ 19 UStG)", x: 350, y, size: 8 });
   } else {
-    z.push({ text: "Netto: " + euro(sum.netto), x: 400, y, size: 10 });
-    y -= 14; z.push({ text: "zzgl. " + e.mwst + " % USt: " + euro(sum.ust), x: 400, y, size: 10 });
-    y -= 16; z.push({ text: "Gesamtbetrag: " + euro(sum.brutto), x: 400, y, size: 12, bold: true });
+    zu({ text: "Netto: " + euro(sum.netto), x: 400, y, size: 10 });
+    y -= 14; zu({ text: "zzgl. " + e.mwst + " % USt: " + euro(sum.ust), x: 400, y, size: 10 });
+    y -= 16; zu({ text: "Gesamtbetrag: " + euro(sum.brutto), x: 400, y, size: 12, bold: true });
   }
-  // Schlusstext + Fußzeile
+  // Schlusstext (nicht unter die Fußzeile/Unterschrift rutschen lassen)
   y -= 40;
   const schluss = art === "angebot"
     ? "Dieses Angebot ist 30 Tage gültig. Ich freue mich auf Ihren Auftrag!"
     : "Bitte überweisen Sie den Betrag innerhalb von " + (e.zahlungsziel || 14) + " Tagen. Vielen Dank!";
-  z.push({ text: schluss, x: 50, y, size: 10 });
-  // Unterschrift (Rechnung/Abnahme): als Bild rechts unten
+  zu({ text: schluss, x: 50, y: Math.max(y, 175), size: 10 });
+  // Unterschrift (Abnahme) rechts unten auf der letzten Seite
   if (a.unterschrift) {
-    z.push({ bild: a.unterschrift, x: 350, y: 95, w: 180, h: 55 });
-    z.push({ text: "Unterschrift Kunde", x: 350, y: 88, size: 7 });
+    zu({ bild: a.unterschrift, x: 350, y: 95, w: 180, h: 55 });
+    zu({ text: "Unterschrift Kunde", x: 350, y: 88, size: 7 });
   }
   const fuss = [firmaName, e.steuernummer ? "Steuernummer: " + e.steuernummer : "", e.iban ? "IBAN: " + e.iban : ""].filter(Boolean).join("   ·   ");
-  z.push({ text: fuss, x: 50, y: 60, size: 8 });
-  return z;
+  zu({ text: fuss, x: 50, y: 60, size: 8 });
+  return seiten;
 }
 
 // Vergibt (einmalig) die Dokumentnummer und liefert sie zurück
@@ -1677,14 +1734,17 @@ function dokumentAusgeben(id, art) {
   const a = daten.auftraege.find((x) => x.id === id);
   if (!a) return;
   if (!a.positionen || a.positionen.length === 0) { alert("Bitte zuerst mindestens eine Position mit Leistung eintragen."); return; }
-  const nummer = dokumentNummerSichern(a, art);
   const artName = art === "angebot" ? "Angebot" : "Rechnung";
+  // Belegnummer NICHT schon beim Öffnen des Menüs vergeben — sonst entstehen
+  // Lücken in der fortlaufenden Nummerierung, wenn der Nutzer abbricht.
+  // Die Nummer wird erst in dokumentPdfBlob / dokumentDrucken gesichert.
+  const nummer = art === "angebot" ? a.angebotNr : a.rechnungNr;
   const kannTeilen = typeof navigator !== "undefined" && navigator.canShare &&
     navigator.canShare({ files: [new File([new Blob(["x"])], "t.pdf", { type: "application/pdf" })] });
 
   dialog2.innerHTML = `
   <div class="dialog-kopf">
-    <h2>${artName} Nr. ${esc(nummer)}</h2>
+    <h2>${artName}${nummer ? " Nr. " + esc(nummer) : ""}</h2>
     <button class="schliessen" onclick="dialog2.close()" aria-label="Schließen">×</button>
   </div>
   <div class="dialog-inhalt">
