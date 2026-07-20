@@ -354,6 +354,7 @@
    Datenhaltung – alles liegt lokal im Browser (localStorage)
    ========================================================= */
 const SPEICHER_SCHLUESSEL = "maler-auftragsverwaltung-v1";
+const APP_VERSION = "1.7";
 
 const STATUS = [
   { id: "anfrage",    name: "Anfrage" },
@@ -2398,7 +2399,9 @@ function renderEinstellungen() {
       <button class="gefahr" onclick="allesLoeschen()">Alle Daten löschen</button>
       ${daten.kunden.length === 0 && daten.auftraege.length === 0 ? `<button class="sekundaer" onclick="beispieldatenLaden()">Beispieldaten laden</button>` : ""}
     </div>
-  </div>`;
+  </div>
+
+  <div class="hinweis" style="text-align:center;margin-top:4px">Auftragsverwaltung · Version ${esc(APP_VERSION)}</div>`;
 }
 
 // Branchen-Vorlage in das Preislisten-Feld übernehmen (gespeichert wird erst mit „Speichern“)
