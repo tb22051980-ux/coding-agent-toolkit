@@ -354,7 +354,7 @@
    Datenhaltung – alles liegt lokal im Browser (localStorage)
    ========================================================= */
 const SPEICHER_SCHLUESSEL = "maler-auftragsverwaltung-v1";
-const APP_VERSION = "1.7";
+const APP_VERSION = "1.8";
 
 const STATUS = [
   { id: "anfrage",    name: "Anfrage" },
@@ -682,6 +682,15 @@ function themeAnwenden(id) {
   let meta = document.querySelector('meta[name="theme-color"]');
   if (!meta) { meta = document.createElement("meta"); meta.name = "theme-color"; document.head.appendChild(meta); }
   if (kopf) meta.content = kopf;
+}
+
+// Design auswählen: sofort anwenden UND dauerhaft speichern, damit es auf
+// allen Seiten (und nach dem Abgleich auf allen Geräten) übernommen wird —
+// ohne dass extra „Speichern“ nötig ist.
+function themeWaehlen(id) {
+  daten.einstellungen.theme = THEMES.some((t) => t.id === id) ? id : "auto";
+  themeAnwenden(daten.einstellungen.theme);
+  speichern();
 }
 
 function uid() {
@@ -2352,7 +2361,7 @@ function renderEinstellungen() {
     <div class="feldpaar">
       <div>
         <label>🎨 Design</label>
-        <select id="e-theme" onchange="themeAnwenden(this.value)">${THEMES.map((t) => `<option value="${t.id}" ${t.id === (e.theme || "auto") ? "selected" : ""}>${t.name}</option>`).join("")}</select>
+        <select id="e-theme" onchange="themeWaehlen(this.value)">${THEMES.map((t) => `<option value="${t.id}" ${t.id === (e.theme || "auto") ? "selected" : ""}>${t.name}</option>`).join("")}</select>
       </div>
       <div>
         <label>Meine Branche</label>
@@ -2360,7 +2369,7 @@ function renderEinstellungen() {
       </div>
     </div>
     <div style="margin-top:8px"><button class="sekundaer" onclick="brancheVorlageUebernehmen()">Preisliste mit Branchen-Vorlage füllen</button></div>
-    <div class="hinweis">Das Design wird sofort übernommen; mit „Speichern“ bleibt es dauerhaft. „Automatisch“ folgt der Hell-/Dunkel-Einstellung deines Geräts.</div>
+    <div class="hinweis">Das Design wird sofort auf allen Seiten übernommen und gespeichert. „Automatisch“ folgt der Hell-/Dunkel-Einstellung deines Geräts.</div>
     <label>Preisliste für den Notiz-Assistenten <span style="font-weight:400">(je Zeile: Begriff ; Preis ; Einheit)</span></label>
     <textarea id="e-preisliste" style="min-height:110px" placeholder="streichen ; 12,50 ; m²">${esc((e.preisliste || []).map((p) => p.begriff + " ; " + String(p.preis).replace(".", ",") + " ; " + p.einheit).join("\n"))}</textarea>
     <div class="hinweis">Taucht ein Begriff (z. B. „streichen“ oder „helfer“) in einer Notizzeile auf, setzt der Assistent automatisch diesen Preis ein. Preise unbedingt an den eigenen Betrieb anpassen.</div>
