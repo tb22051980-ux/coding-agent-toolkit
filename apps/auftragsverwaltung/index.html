@@ -256,6 +256,19 @@
   .vorschau-tabelle th { text-align: left; color: var(--text-leise); font-size: .78rem; padding: 4px 6px 4px 0; }
   .vorschau-tabelle td { padding: 4px 6px 4px 0; border-top: 1px solid var(--grau); }
 
+  /* ---------- Demo-Band ---------- */
+  .demo-band {
+    background: color-mix(in srgb, var(--gelb) 16%, var(--karte));
+    border: 1px solid color-mix(in srgb, var(--gelb) 45%, var(--linie));
+    color: var(--gelb); font-weight: 600; font-size: .9rem;
+    border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; cursor: pointer;
+  }
+  .demo-band.abgelaufen {
+    background: color-mix(in srgb, var(--rot) 14%, var(--karte));
+    border-color: color-mix(in srgb, var(--rot) 45%, var(--linie)); color: var(--rot);
+  }
+  .demo-band u { text-underline-offset: 2px; }
+
   /* ---------- Stundenzettel ---------- */
   .zeitzeile { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
   .zeitzeile input { padding: 7px 8px; }
@@ -356,6 +369,54 @@
 const SPEICHER_SCHLUESSEL = "maler-auftragsverwaltung-v1";
 const APP_VERSION = "1.8";
 
+/* ---------- Demo / Vollversion ----------
+   14-Tage-Demo ab erstem Start. Danach sind die verkaufsrelevanten
+   Funktionen (neuer Auftrag, Angebot/Rechnung erzeugen) gesperrt, bis ein
+   gültiger Lizenzschlüssel eingegeben wird. Vorhandene Daten bleiben immer
+   sichtbar und exportierbar. Hinweis: Da die App komplett offline auf dem
+   Gerät läuft, ist die Prüfung bewusst einfach — sie hält ehrliche Kunden,
+   ist aber kein Kopierschutz gegen technisch versierte Nutzer.            */
+const DEMO_TAGE = 14;
+const DEMO_START_KEY = SPEICHER_SCHLUESSEL + ":demostart";
+const LIZENZ_SALT = "AVW-2026-Handwerk";   // in der App sichtbar; genügt gegen beiläufiges Weitergeben
+
+// Aus einem Firmennamen einen festen Schlüssel ableiten (Generator + App gleich)
+function lizenzSchluessel(name) {
+  const basis = LIZENZ_SALT + "|" + String(name || "").trim().toLowerCase().replace(/\s+/g, "");
+  let h1 = 2166136261 >>> 0, h2 = 5381 >>> 0;
+  for (let i = 0; i < basis.length; i++) {
+    const c = basis.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 16777619) >>> 0;
+    h2 = (Math.imul(h2, 33) ^ c) >>> 0;
+  }
+  const roh = (h1.toString(36) + h2.toString(36)).toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const s = (roh + "ABCDEFGHJKLM").slice(0, 12);
+  return s.slice(0, 4) + "-" + s.slice(4, 8) + "-" + s.slice(8, 12);
+}
+function lizenzGueltig(name, key) {
+  if (!name || !key) return false;
+  const norm = (x) => String(x).replace(/[-\s]/g, "").toUpperCase();
+  return norm(lizenzSchluessel(name)) === norm(key);
+}
+
+function demoStartDatum() {
+  let s = localStorage.getItem(DEMO_START_KEY);
+  if (!s) { s = heuteISO(); localStorage.setItem(DEMO_START_KEY, s); }
+  return s;
+}
+function demoRestTage() {
+  const start = new Date(demoStartDatum() + "T00:00:00");
+  const verstrichen = Math.floor((Date.now() - start.getTime()) / 86400000);
+  return DEMO_TAGE - verstrichen;
+}
+function vollversionAktiv() {
+  const l = daten.einstellungen.lizenz || {};
+  return lizenzGueltig(l.name, l.schluessel);
+}
+function demoAbgelaufen() {
+  return !vollversionAktiv() && demoRestTage() <= 0;
+}
+
 const STATUS = [
   { id: "anfrage",    name: "Anfrage" },
   { id: "angebot",    name: "Angebot erstellt" },
@@ -426,7 +487,7 @@ function leererZustand() {
       firma: "", inhaber: "", strasse: "", plzOrt: "", telefon: "", email: "",
       iban: "", steuernummer: "", mwst: 19, kleinunternehmer: false,
       stundensatz: 55, zahlungsziel: 14, naechsteNummer: 1,
-      branche: "allgemein", theme: "auto",
+      branche: "allgemein", theme: "auto", lizenz: { name: "", schluessel: "" },
       preisliste: [
         { begriff: "arbeitsstunde", einheit: "Std.", preis: 60 },
         { begriff: "anfahrt", einheit: "pausch.", preis: 40 },
@@ -693,6 +754,59 @@ function themeWaehlen(id) {
   speichern();
 }
 
+/* ---------- Demo-Sperre & Freischaltung ---------- */
+// Wird vor verkaufsrelevanten Aktionen aufgerufen: nach Ablauf der Demo
+// den Freischalt-Dialog zeigen und die Aktion blockieren.
+function demoSperrePruefen() {
+  if (!demoAbgelaufen()) return true;
+  freischaltOeffnen();
+  return false;
+}
+
+function freischaltOeffnen() {
+  const l = daten.einstellungen.lizenz || {};
+  const rest = demoRestTage();
+  const abgelaufen = demoAbgelaufen();
+  dialog2.innerHTML = `
+  <div class="dialog-kopf">
+    <h2>${abgelaufen ? "🔒 Demo abgelaufen" : "Vollversion freischalten"}</h2>
+    <button class="schliessen" onclick="dialog2.close()" aria-label="Schließen">×</button>
+  </div>
+  <div class="dialog-inhalt">
+    ${abgelaufen
+      ? `<p>Die 14-Tage-Demo ist vorbei. Deine Daten bleiben erhalten und lassen sich weiter ansehen und sichern — zum <b>Anlegen neuer Aufträge</b> und <b>Erstellen von Angeboten/Rechnungen</b> ist die Vollversion nötig.</p>`
+      : `<p>Noch <b>${Math.max(0, rest)} Tag${rest === 1 ? "" : "e"}</b> in der Demo. Du kannst jederzeit freischalten.</p>`}
+    <label>Firmenname (genau wie beim Kauf angegeben)</label>
+    <input id="lz-name" value="${esc(l.name || daten.einstellungen.firma || "")}" placeholder="z. B. Mustermann Umzüge">
+    <label>Lizenzschlüssel</label>
+    <input id="lz-key" value="${esc(l.schluessel || "")}" placeholder="XXXX-XXXX-XXXX" autocapitalize="characters" style="text-transform:uppercase">
+    <div class="hinweis" id="lz-status">Schlüssel erhalten? Firmenname und Schlüssel eintragen und „Freischalten“ tippen.</div>
+  </div>
+  <div class="dialog-fuss">
+    <span></span>
+    <div class="rechtsgruppe">
+      <button class="sekundaer" onclick="dialog2.close()">Später</button>
+      <button class="primaer" onclick="freischaltPruefen()">Freischalten</button>
+    </div>
+  </div>`;
+  dialog2.showModal();
+}
+
+function freischaltPruefen() {
+  const name = document.getElementById("lz-name").value.trim();
+  const key = document.getElementById("lz-key").value.trim();
+  if (lizenzGueltig(name, key)) {
+    daten.einstellungen.lizenz = { name, schluessel: key };
+    speichern();
+    dialog2.close();
+    alert("✅ Vollversion freigeschaltet. Vielen Dank!");
+    render();
+  } else {
+    const st = document.getElementById("lz-status");
+    if (st) { st.textContent = "❌ Schlüssel passt nicht zum Firmennamen. Bitte beides genau so eintragen wie beim Kauf angegeben."; st.style.color = "var(--rot)"; }
+  }
+}
+
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
@@ -790,12 +904,23 @@ function render() {
   ).join("");
 
   const inhalt = document.getElementById("inhalt");
-  if (aktiveAnsicht === "uebersicht") inhalt.innerHTML = renderUebersicht();
-  else if (aktiveAnsicht === "auftraege") inhalt.innerHTML = renderAuftraege();
-  else if (aktiveAnsicht === "termine") inhalt.innerHTML = renderTermine();
-  else if (aktiveAnsicht === "umsatz") inhalt.innerHTML = renderUmsatz();
-  else if (aktiveAnsicht === "kunden") inhalt.innerHTML = renderKunden();
+  let vorspann = demoBanner();
+  if (aktiveAnsicht === "uebersicht") inhalt.innerHTML = vorspann + renderUebersicht();
+  else if (aktiveAnsicht === "auftraege") inhalt.innerHTML = vorspann + renderAuftraege();
+  else if (aktiveAnsicht === "termine") inhalt.innerHTML = vorspann + renderTermine();
+  else if (aktiveAnsicht === "umsatz") inhalt.innerHTML = vorspann + renderUmsatz();
+  else if (aktiveAnsicht === "kunden") inhalt.innerHTML = vorspann + renderKunden();
   else inhalt.innerHTML = renderEinstellungen();
+}
+
+// Hinweisbanner zum Demo-Status (nichts, wenn Vollversion aktiv)
+function demoBanner() {
+  if (vollversionAktiv()) return "";
+  const rest = demoRestTage();
+  if (rest > 0) {
+    return `<div class="demo-band" onclick="freischaltOeffnen()">🕒 Demo – noch ${rest} Tag${rest === 1 ? "" : "e"}. <u>Vollversion freischalten</u></div>`;
+  }
+  return `<div class="demo-band abgelaufen" onclick="freischaltOeffnen()">🔒 Demo abgelaufen – zum Anlegen neuer Aufträge und Rechnungen <u>freischalten</u>. Deine Daten bleiben erhalten.</div>`;
 }
 
 /* ---------- Übersicht ---------- */
@@ -1027,6 +1152,8 @@ let stoppuhrStart = null; // Zeitstempel (ms) einer laufenden Stoppuhr, sonst nu
 let stoppuhrTimer = null;
 
 function auftragBearbeiten(id, vorbelegterKundeId) {
+  // Nach Ablauf der Demo keine neuen Aufträge mehr anlegen (Vorhandene bleiben nutzbar)
+  if (!id && !demoSperrePruefen()) return;
   const a = id
     ? daten.auftraege.find((x) => x.id === id)
     : { id: "", kundeId: vorbelegterKundeId || "", titel: "", beschreibung: "", status: "anfrage",
@@ -1914,6 +2041,7 @@ function dokumentNummerSichern(a, art) {
 }
 
 function dokumentAusgeben(id, art) {
+  if (!demoSperrePruefen()) return;
   auftragSpeichernStill(id);
   const a = daten.auftraege.find((x) => x.id === id);
   if (!a) return;
@@ -1979,6 +2107,7 @@ async function dokumentPdfHerunterladen(id, art) {
    Angebot / Rechnung drucken
    ========================================================= */
 function dokumentDrucken(id, art) {
+  if (!demoSperrePruefen()) return;
   // Erst speichern, damit der Ausdruck den aktuellen Stand zeigt
   auftragSpeichernStill(id);
   const a = daten.auftraege.find((x) => x.id === id);
@@ -2408,6 +2537,14 @@ function renderEinstellungen() {
       <button class="gefahr" onclick="allesLoeschen()">Alle Daten löschen</button>
       ${daten.kunden.length === 0 && daten.auftraege.length === 0 ? `<button class="sekundaer" onclick="beispieldatenLaden()">Beispieldaten laden</button>` : ""}
     </div>
+  </div>
+
+  <div class="karte">
+    <h2>🔑 Vollversion</h2>
+    ${vollversionAktiv()
+      ? `<p style="margin-top:0;color:var(--gruen);font-weight:600">✓ Freigeschaltet für „${esc((e.lizenz || {}).name)}“. Vielen Dank!</p>`
+      : `<p style="margin-top:0">Diese Version ist eine <b>${DEMO_TAGE}-Tage-Demo</b> — noch <b>${Math.max(0, demoRestTage())} Tag${demoRestTage() === 1 ? "" : "e"}</b>. Danach bleiben deine Daten sicht- und sicherbar; zum Anlegen neuer Aufträge und Rechnungen ist die Vollversion nötig.</p>
+         <button class="primaer" onclick="freischaltOeffnen()">Vollversion freischalten</button>`}
   </div>
 
   <div class="hinweis" style="text-align:center;margin-top:4px">Auftragsverwaltung · Version ${esc(APP_VERSION)}</div>`;

@@ -130,6 +130,11 @@ arbeitet unterwegs normal weiter und speichert alles lokal.
 - **Dark Mode & Designs:** unter Einstellungen → 🎨 Design; „Automatisch“
   folgt der Hell-/Dunkel-Einstellung des Geräts, dazu mehrere Farbwelten
   (Blau, Grün, Anthrazit, Bordeaux, Sand) — in App und am PC.
+- **14-Tage-Demo & Freischaltung:** die App läuft 14 Tage voll; danach
+  bleiben Ansehen und Synchronisieren erlaubt, aber neue Aufträge sowie
+  PDF/Ausdruck erst nach Freischalten der Vollversion (Einstellungen →
+  🔑 Vollversion). Der Verkäufer erzeugt den Schlüssel aus dem Firmennamen
+  des Kunden mit `lizenz-generator.html`.
 - **Kleinunternehmer-Modus (§ 19 UStG)** umschaltbar; USt-Satz,
   Zahlungsziel und Stundensatz einstellbar.
 - **Kunden** mit Adresse, Kontakt, Notizen und allen Aufträgen.
@@ -174,3 +179,10 @@ arbeitet unterwegs normal weiter und speichert alles lokal.
   Neuinstallation.
 - Abgleich: letzter Stand gewinnt (Zeitstempel `stand`); ausstehende
   Änderungen und Fotos werden alle 20 s nachgereicht.
+- `lizenz-generator.html` — **nur für den Verkäufer.** Erzeugt aus dem
+  Firmennamen des Kunden den namensgebundenen Freischalt-Schlüssel
+  (gleicher Algorithmus wie in `index.html`, `LIZENZ_SALT` muss
+  übereinstimmen). Lokal im Browser öffnen, nicht an Kunden weitergeben.
+  Die Prüfung ist bewusst schlank (offline, ohne Server); sie hält
+  Gelegenheits-Weitergabe auf, ist aber kein Kopierschutz gegen
+  technisch versierte Nutzer.

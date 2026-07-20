@@ -104,6 +104,28 @@ Gewerke sowie Transport & Umzug verallgemeinert (App liegt jetzt unter
   Designs inkl. Kontrast (Listenkarten-Textfarbe gefixt); alle 7 Suiten
   grün (smoke.js-Selektor an neuen Hinweistext angepasst).
 
+## Ausbaustufe 8 (Vertrieb: Demo + Lizenz)
+
+- Design-Wechsel wirkt sofort auf allen Seiten: `themeWaehlen()` speichert
+  die Auswahl direkt (vorher überschrieb `render()` beim Seitenwechsel die
+  ungespeicherte Dropdown-Wahl mit dem alten gespeicherten Theme);
+  doppelte Funktionsdefinition entfernt.
+- 14-Tage-Demo: `DEMO_TAGE=14`, Startdatum in localStorage
+  (`…:demostart`); `demoRestTage()`/`demoAbgelaufen()`. Nach Ablauf bleiben
+  Ansehen + Sync erlaubt, aber neuer Auftrag, PDF-Ausgabe und Ausdruck
+  gesperrt (`demoSperrePruefen()` öffnet stattdessen den Freischalt-Dialog).
+- Freischaltung offline, namensgebunden: `lizenzSchluessel(name)` (FNV +
+  djb2 über `LIZENZ_SALT|name`, Base36, `XXXX-XXXX-XXXX`); in Einstellungen
+  Karte „🔑 Vollversion“. Demo-Banner (gelb Restlaufzeit / rot abgelaufen)
+  in allen Ansichten außer Einstellungen.
+- `lizenz-generator.html`: Verkäufer-Werkzeug, erzeugt den Schlüssel aus
+  dem Kundennamen; gleicher Algorithmus/Salt wie `index.html`. Bewusst
+  schlank — hält Gelegenheits-Weitergabe auf, kein harter Kopierschutz.
+- Verifikation: smoke8.js (Demo aktiv 14 Tage, künstlicher Ablauf nach
+  20 Tagen, Sperre neuer Auftrag, falscher Schlüssel abgelehnt, korrekter
+  Schlüssel schaltet frei, Banner verschwindet, Lizenz übersteht Reload);
+  alle 8 Suiten grün. APK (versionCode 9 / 1.8) und Windows-Exe neu gebaut.
+
 ## Entscheidungen
 
 - **Single-File-HTML + localStorage** statt Server-App: Zielnutzer hat
