@@ -15,6 +15,7 @@ import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -26,7 +27,13 @@ import android.webkit.WebViewClient;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class MainActivity extends Activity {
@@ -54,6 +61,9 @@ public class MainActivity extends Activity {
         einstellungen.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         // Erkennungsmerkmal für die App-Betriebsart der Oberfläche
         einstellungen.setUserAgentString(einstellungen.getUserAgentString() + " AuftragsApp");
+        // Brücke: verrät der Oberfläche die eigene WLAN-Adresse, damit die
+        // PC-Suche gezielt im richtigen Netz-Bereich läuft
+        webView.addJavascriptInterface(new NativeBruecke(), "AuftragsAppNative");
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -110,6 +120,32 @@ public class MainActivity extends Activity {
             return;
         }
         super.onActivityResult(code, ergebnis, daten);
+    }
+
+    // Brücke für die Oberfläche: liefert die IPv4-Adressen des Geräts als
+    // JSON-Array (z. B. ["192.168.1.37"]) — braucht keine Berechtigung.
+    public static class NativeBruecke {
+        @JavascriptInterface
+        public String geraeteIPs() {
+            List<String> adressen = new ArrayList<>();
+            try {
+                Enumeration<NetworkInterface> netze = NetworkInterface.getNetworkInterfaces();
+                for (NetworkInterface netz : Collections.list(netze)) {
+                    if (!netz.isUp() || netz.isLoopback()) continue;
+                    for (InetAddress adr : Collections.list(netz.getInetAddresses())) {
+                        if (adr.isLoopbackAddress()) continue;
+                        String ip = adr.getHostAddress();
+                        if (ip != null && ip.matches("\\d+\\.\\d+\\.\\d+\\.\\d+")) adressen.add(ip);
+                    }
+                }
+            } catch (Exception ignoriert) { /* ohne native IP nutzt die App Standard-Netzbereiche */ }
+            StringBuilder sb = new StringBuilder("[");
+            for (int i = 0; i < adressen.size(); i++) {
+                if (i > 0) sb.append(",");
+                sb.append("\"").append(adressen.get(i)).append("\"");
+            }
+            return sb.append("]").toString();
+        }
     }
 
     // Zurück-Taste: erst offene Dialoge/Großansicht in der Oberfläche schließen,

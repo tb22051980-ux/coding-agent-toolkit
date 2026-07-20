@@ -88,6 +88,22 @@ Gewerke sowie Transport & Umzug verallgemeinert (App liegt jetzt unter
   PDF-Bild-Einbettung im Chromium-Viewer, Serie mit Datumsprüfung);
   smoke.js/smoke2.js an neue Button-Texte angepasst; alle Suiten grün.
 
+## Ausbaustufe 7 (Komfort)
+
+- WLAN-Autoerkennung des PC: Server-Kennung in `/api/status`
+  (app=auftragsverwaltung); Android-Brücke `AuftragsAppNative.geraeteIPs()`
+  liefert den eigenen /24 für gezielten Scan; sonst Standard-Heimnetz-
+  Bereiche. HTTP-Subnetz-Scan mit Parallelität + Früh-Abbruch; Auto-Suche
+  beim Start (IN_APP ohne serverBasis) plus „🔍 PC suchen“-Knopf.
+- Dark Mode + Designs: Token-basiertes Theme-System (`data-theme` am
+  <html>), „auto“ folgt prefers-color-scheme; Designs hell/dunkel/grün/
+  anthrazit/bordeaux/sand; feste #fff-Flächen auf `--karte` umgestellt;
+  Auswahl in Einstellungen (`einstellungen.theme`), live + gespeichert.
+- Verifikation: smoke7.js (Server-Kennung, Netzbereich-Reihenfolge,
+  Auto-Verbindung beim Start, Sync danach); Theme-Sichtprüfung mehrerer
+  Designs inkl. Kontrast (Listenkarten-Textfarbe gefixt); alle 7 Suiten
+  grün (smoke.js-Selektor an neuen Hinweistext angepasst).
+
 ## Entscheidungen
 
 - **Single-File-HTML + localStorage** statt Server-App: Zielnutzer hat

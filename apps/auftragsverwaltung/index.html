@@ -10,11 +10,17 @@
 <meta name="apple-mobile-web-app-title" content="Aufträge">
 <title>Auftragsverwaltung – Handwerk, Transport &amp; Umzug</title>
 <style>
+  /* ---------- Designs / Farb-Tokens ----------
+     Standard = Blau hell. „Automatisch“ folgt der Systemeinstellung
+     (hell/dunkel). Ein gewähltes Design setzt data-theme am <html> und
+     überschreibt die Systemvorgabe.                                   */
   :root {
+    --kopf: #1d5c8f;
     --blau: #1d5c8f;
     --blau-dunkel: #14415f;
-    --grau-hell: #f4f6f8;
-    --grau: #e2e7ec;
+    --grau-hell: #f4f6f8;   /* Seitenhintergrund */
+    --karte: #ffffff;       /* Flächen: Karten, Felder, Dialoge */
+    --grau: #e2e7ec;        /* Linien + Sekundär-Fläche */
     --text: #22303c;
     --text-leise: #64748b;
     --gruen: #1e7d46;
@@ -22,6 +28,57 @@
     --rot: #b91c1c;
     --radius: 10px;
     --schatten: 0 1px 3px rgba(0,0,0,.12);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme]) {
+      --kopf: #12212e; --blau: #4a90c8; --blau-dunkel: #3a7db0;
+      --grau-hell: #0e1620; --karte: #18232f; --grau: #2b3a48;
+      --text: #e7eef4; --text-leise: #93a3b2;
+      --gruen: #34c67f; --gelb: #e0a247; --rot: #e5686a;
+      --schatten: 0 1px 2px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="hell"] {
+    --kopf: #1d5c8f; --blau: #1d5c8f; --blau-dunkel: #14415f;
+    --grau-hell: #f4f6f8; --karte: #fff; --grau: #e2e7ec;
+    --text: #22303c; --text-leise: #64748b;
+    --gruen: #1e7d46; --gelb: #b45309; --rot: #b91c1c;
+    --schatten: 0 1px 3px rgba(0,0,0,.12);
+  }
+  :root[data-theme="dunkel"] {
+    --kopf: #12212e; --blau: #4a90c8; --blau-dunkel: #3a7db0;
+    --grau-hell: #0e1620; --karte: #18232f; --grau: #2b3a48;
+    --text: #e7eef4; --text-leise: #93a3b2;
+    --gruen: #34c67f; --gelb: #e0a247; --rot: #e5686a;
+    --schatten: 0 1px 2px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.4);
+  }
+  :root[data-theme="gruen"] {
+    --kopf: #1f6d4a; --blau: #1f6d4a; --blau-dunkel: #175338;
+    --grau-hell: #f1f6f3; --karte: #fff; --grau: #dbe7e0;
+    --text: #1c2b23; --text-leise: #5c7267;
+    --gruen: #1e7d46; --gelb: #b45309; --rot: #b91c1c;
+    --schatten: 0 1px 3px rgba(0,0,0,.12);
+  }
+  :root[data-theme="anthrazit"] {
+    --kopf: #1b2129; --blau: #7aa2c4; --blau-dunkel: #688fb0;
+    --grau-hell: #12161b; --karte: #1c232b; --grau: #2f3944;
+    --text: #e6eaee; --text-leise: #9aa6b1;
+    --gruen: #34c67f; --gelb: #e0a247; --rot: #e5686a;
+    --schatten: 0 1px 2px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.4);
+  }
+  :root[data-theme="bordeaux"] {
+    --kopf: #8a2f43; --blau: #8a2f43; --blau-dunkel: #6d2434;
+    --grau-hell: #f8f2f3; --karte: #fff; --grau: #ecdde1;
+    --text: #2a1c20; --text-leise: #6f5a5f;
+    --gruen: #1e7d46; --gelb: #b45309; --rot: #b91c1c;
+    --schatten: 0 1px 3px rgba(0,0,0,.12);
+  }
+  :root[data-theme="sand"] {
+    --kopf: #8a6d3b; --blau: #8a6d3b; --blau-dunkel: #6d5530;
+    --grau-hell: #f7f4ee; --karte: #fffdf8; --grau: #e8e0d0;
+    --text: #2b2618; --text-leise: #6b6350;
+    --gruen: #1e7d46; --gelb: #b45309; --rot: #b91c1c;
+    --schatten: 0 1px 3px rgba(0,0,0,.1);
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
@@ -35,7 +92,7 @@
 
   /* ---------- Kopf & Navigation ---------- */
   header {
-    background: var(--blau);
+    background: var(--kopf);
     color: #fff;
     padding: 14px 16px 0;
   }
@@ -49,13 +106,13 @@
     padding: 8px 14px; font-size: .95rem; cursor: pointer;
     border-radius: 8px; white-space: nowrap;
   }
-  nav button.aktiv { background: var(--grau-hell); color: var(--text); font-weight: 600; }
+  nav button.aktiv { background: var(--karte); color: var(--text); font-weight: 600; }
 
   main { max-width: 960px; margin: 0 auto; padding: 16px; }
 
   /* ---------- Bausteine ---------- */
   .karte {
-    background: #fff; border-radius: var(--radius); box-shadow: var(--schatten);
+    background: var(--karte); border-radius: var(--radius); box-shadow: var(--schatten);
     padding: 16px; margin-bottom: 12px;
   }
   .karte h2 { margin: 0 0 12px; font-size: 1.05rem; }
@@ -64,8 +121,8 @@
 
   .kacheln { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
   .kachel {
-    background: #fff; border-radius: var(--radius); box-shadow: var(--schatten);
-    padding: 14px; cursor: pointer; border: none; text-align: left; font: inherit;
+    background: var(--karte); border-radius: var(--radius); box-shadow: var(--schatten);
+    padding: 14px; cursor: pointer; border: none; text-align: left; font: inherit; color: var(--text);
   }
   .kachel .zahl { font-size: 1.7rem; font-weight: 700; color: var(--blau); }
   .kachel .beschriftung { color: var(--text-leise); font-size: .85rem; }
@@ -89,12 +146,12 @@
   button.primaer { background: var(--blau); color: #fff; }
   button.primaer:hover { background: var(--blau-dunkel); }
   button.sekundaer { background: var(--grau); color: var(--text); }
-  button.gefahr { background: #fff; color: var(--rot); border: 1px solid var(--rot); }
+  button.gefahr { background: var(--karte); color: var(--rot); border: 1px solid var(--rot); }
   button.klein { padding: 6px 10px; font-size: .82rem; }
 
   input, select, textarea {
-    font: inherit; padding: 9px 10px; border: 1px solid #cbd5e1;
-    border-radius: 8px; width: 100%; background: #fff; color: var(--text);
+    font: inherit; padding: 9px 10px; border: 1px solid var(--grau);
+    border-radius: 8px; width: 100%; background: var(--karte); color: var(--text);
   }
   textarea { resize: vertical; min-height: 70px; }
   label { display: block; font-size: .82rem; font-weight: 600; color: var(--text-leise); margin: 10px 0 4px; }
@@ -102,16 +159,16 @@
 
   .filterleiste { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0; }
   .filterleiste button {
-    border: 1px solid var(--grau); background: #fff; border-radius: 999px;
+    border: 1px solid var(--grau); background: var(--karte); border-radius: 999px;
     padding: 6px 12px; font-size: .82rem; cursor: pointer; color: var(--text-leise);
   }
   .filterleiste button.aktiv { background: var(--blau); border-color: var(--blau); color: #fff; }
 
   .listenkarte {
-    background: #fff; border-radius: var(--radius); box-shadow: var(--schatten);
+    background: var(--karte); border-radius: var(--radius); box-shadow: var(--schatten);
     padding: 14px 16px; margin-bottom: 10px; cursor: pointer;
     display: flex; gap: 12px; align-items: center; justify-content: space-between;
-    border: none; width: 100%; text-align: left; font: inherit;
+    border: none; width: 100%; text-align: left; font: inherit; color: var(--text);
   }
   .listenkarte:hover { outline: 2px solid var(--blau); outline-offset: -2px; }
   .listenkarte .titel { font-weight: 600; }
@@ -140,7 +197,7 @@
 
   /* ---------- Dialog ---------- */
   dialog {
-    border: none; border-radius: var(--radius); box-shadow: 0 10px 40px rgba(0,0,0,.25);
+    background: var(--karte); color: var(--text); border: none; border-radius: var(--radius); box-shadow: 0 10px 40px rgba(0,0,0,.25);
     padding: 0; width: min(680px, calc(100vw - 24px));
     max-height: calc(100vh - 40px);
   }
@@ -148,7 +205,7 @@
   .dialog-kopf {
     display: flex; justify-content: space-between; align-items: center;
     padding: 14px 18px; border-bottom: 1px solid var(--grau);
-    position: sticky; top: 0; background: #fff; z-index: 2;
+    position: sticky; top: 0; background: var(--karte); z-index: 2;
   }
   .dialog-kopf h2 { margin: 0; font-size: 1.05rem; }
   .dialog-kopf .schliessen { border: none; background: transparent; font-size: 1.4rem; cursor: pointer; color: var(--text-leise); }
@@ -156,7 +213,7 @@
   .dialog-fuss {
     display: flex; gap: 8px; justify-content: space-between; flex-wrap: wrap;
     padding: 12px 18px; border-top: 1px solid var(--grau);
-    position: sticky; bottom: 0; background: #fff;
+    position: sticky; bottom: 0; background: var(--karte);
   }
   .dialog-fuss .rechtsgruppe { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
 
@@ -180,7 +237,7 @@
   .fotokachel { position: relative; }
   .fotokachel img {
     width: 92px; height: 92px; object-fit: cover; border-radius: 8px;
-    border: 1px solid var(--grau); cursor: pointer; background: var(--grau-hell);
+    border: 1px solid var(--grau); cursor: pointer; background: var(--karte);
   }
   .fotokachel .foto-loeschen {
     position: absolute; top: -6px; right: -6px; width: 22px; height: 22px;
@@ -228,7 +285,7 @@
   .kal-wtag { text-align: center; font-size: .72rem; font-weight: 600; color: var(--text-leise); padding: 4px 0; }
   .kal-tag {
     min-height: 62px; border: 1px solid var(--grau); border-radius: 8px; padding: 4px;
-    font-size: .8rem; background: #fff; display: flex; flex-direction: column; gap: 2px;
+    font-size: .8rem; background: var(--karte); display: flex; flex-direction: column; gap: 2px;
   }
   .kal-tag.leer { background: transparent; border: none; }
   .kal-tag.heute { border-color: var(--blau); border-width: 2px; }
@@ -368,7 +425,7 @@ function leererZustand() {
       firma: "", inhaber: "", strasse: "", plzOrt: "", telefon: "", email: "",
       iban: "", steuernummer: "", mwst: 19, kleinunternehmer: false,
       stundensatz: 55, zahlungsziel: 14, naechsteNummer: 1,
-      branche: "allgemein",
+      branche: "allgemein", theme: "auto",
       preisliste: [
         { begriff: "arbeitsstunde", einheit: "Std.", preis: 60 },
         { begriff: "anfahrt", einheit: "pausch.", preis: 40 },
@@ -425,6 +482,89 @@ function apiUrl(pfad) { return SERVER_SELBST ? pfad : serverBasis + "/" + pfad; 
 // dauerhaft blockieren (z. B. Firewall verschluckt Pakete kommentarlos)
 function fetchMitLimit(url, optionen = {}, ms = 10000) {
   return fetch(url, Object.assign({ signal: AbortSignal.timeout(ms) }, optionen));
+}
+
+/* ---------- PC im WLAN automatisch finden ----------
+   Durchsucht das Heimnetz nach dem laufenden PC-Programm: prüft je Adresse
+   http://<IP>:8722/api/status auf unsere App-Kennung. Kennt die Android-App
+   die eigene WLAN-Adresse (native Brücke), wird gezielt der richtige
+   Netzbereich (/24) durchsucht; sonst gängige Heimnetz-Bereiche.          */
+let pcSucheLaeuft = false;
+
+function netzBereiche() {
+  const bereiche = [];
+  try {
+    if (typeof AuftragsAppNative !== "undefined" && AuftragsAppNative.geraeteIPs) {
+      for (const ip of JSON.parse(AuftragsAppNative.geraeteIPs())) {
+        const m = ip.match(/^(\d+\.\d+\.\d+)\.\d+$/);
+        if (m && !bereiche.includes(m[1])) bereiche.push(m[1]); // eigener /24 zuerst
+      }
+    }
+  } catch { /* ohne native IP nur Standardbereiche */ }
+  for (const p of ["192.168.1", "192.168.0", "192.168.178", "192.168.2", "192.168.188", "10.0.0"]) {
+    if (!bereiche.includes(p)) bereiche.push(p);
+  }
+  return bereiche;
+}
+
+async function hostIstPc(ip) {
+  try {
+    const r = await fetch("http://" + ip + ":8722/api/status", { signal: AbortSignal.timeout(1200) });
+    if (!r.ok) return false;
+    const j = await r.json();
+    return j && j.app === "auftragsverwaltung";
+  } catch { return false; }
+}
+
+// Einen /24-Bereich mit begrenzter Parallelität scannen, beim ersten Treffer stoppen
+function bereichScannen(prefix) {
+  const ips = [];
+  for (let i = 1; i <= 254; i++) ips.push(prefix + "." + i);
+  const GLEICHZEITIG = 40;
+  let index = 0, aktiv = 0, treffer = null;
+  return new Promise((aufloesen) => {
+    const weiter = () => {
+      if (treffer !== null) return;
+      if (index >= ips.length && aktiv === 0) { aufloesen(null); return; }
+      while (aktiv < GLEICHZEITIG && index < ips.length && treffer === null) {
+        const ip = ips[index++]; aktiv++;
+        hostIstPc(ip).then((ok) => {
+          aktiv--;
+          if (ok && treffer === null) { treffer = ip; aufloesen(ip); }
+          else weiter();
+        });
+      }
+    };
+    weiter();
+  });
+}
+
+async function pcSuchen(automatisch) {
+  if (pcSucheLaeuft) return null;
+  pcSucheLaeuft = true;
+  const anzeige = (text) => { const el = document.getElementById("e-suchstatus"); if (el) el.textContent = text; };
+  anzeige("🔍 Suche PC im WLAN …");
+  try {
+    for (const prefix of netzBereiche()) {
+      anzeige("🔍 Durchsuche " + prefix + ".* …");
+      const ip = await bereichScannen(prefix);
+      if (ip) {
+        serverBasis = "http://" + ip + ":8722";
+        localStorage.setItem(SERVER_BASIS_SCHLUESSEL, serverBasis);
+        serverAktiv = false;
+        const feld = document.getElementById("e-serverbasis");
+        if (feld) feld.value = serverBasis;
+        anzeige("✓ PC gefunden: " + ip);
+        syncAbgleich();
+        syncAnzeige();
+        return serverBasis;
+      }
+    }
+    anzeige(automatisch ? "" : "Kein PC gefunden. Läuft das PC-Programm und ist das Handy im selben WLAN?");
+    return null;
+  } finally {
+    pcSucheLaeuft = false;
+  }
 }
 
 const SYNC_FLAG = SPEICHER_SCHLUESSEL + ":ausstehend";
@@ -503,6 +643,13 @@ async function syncStart() {
   // Abgleich-Takt immer einrichten — die PC-Adresse kann auch erst
   // später in den Einstellungen eingetragen werden
   setInterval(syncAbgleich, 20000);
+  // In der Handy-App ohne hinterlegte Adresse einmal automatisch den PC
+  // im WLAN suchen (im Hintergrund; findet er nichts, bleibt alles lokal)
+  if (IN_APP && !serverBasis) {
+    const badge = document.getElementById("sync-badge");
+    if (badge) { badge.style.display = ""; badge.textContent = "🔍 Suche PC im WLAN …"; badge.className = "sync-badge gelb"; }
+    pcSuchen(true).then((gefunden) => { if (!gefunden) syncAnzeige(); });
+  }
   if (!serverMoeglich()) { syncAnzeige(); return; }
   await syncAbgleich();
   // Erststart am Server: lokale Daten hochladen, falls dort noch nichts liegt
@@ -512,6 +659,28 @@ async function syncStart() {
       if (antwort.ok && (await antwort.json()) === null) planeSync();
     } catch { /* nächster Abgleich versucht es erneut */ }
   }
+}
+
+/* ---------- Designs / Dark Mode ---------- */
+const THEMES = [
+  { id: "auto", name: "Automatisch (Systemeinstellung)" },
+  { id: "hell", name: "Blau – hell" },
+  { id: "dunkel", name: "Blau – dunkel" },
+  { id: "gruen", name: "Grün" },
+  { id: "anthrazit", name: "Anthrazit (dunkel)" },
+  { id: "bordeaux", name: "Bordeaux" },
+  { id: "sand", name: "Sand (warm)" },
+];
+
+function themeAnwenden(id) {
+  const gueltig = THEMES.some((t) => t.id === id) ? id : "auto";
+  if (gueltig === "auto") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", gueltig);
+  // Browser-/Statusleistenfarbe an die Kopffarbe des Designs anpassen
+  const kopf = getComputedStyle(document.documentElement).getPropertyValue("--kopf").trim();
+  let meta = document.querySelector('meta[name="theme-color"]');
+  if (!meta) { meta = document.createElement("meta"); meta.name = "theme-color"; document.head.appendChild(meta); }
+  if (kopf) meta.content = kopf;
 }
 
 function uid() {
@@ -604,6 +773,7 @@ function zeige(ansicht) {
 }
 
 function render() {
+  themeAnwenden(daten.einstellungen.theme || "auto");
   document.getElementById("kopf-firma").textContent = daten.einstellungen.firma || "";
   document.getElementById("hauptnav").innerHTML = ANSICHTEN.map((a) =>
     `<button class="${a.id === aktiveAnsicht ? "aktiv" : ""}" onclick="zeige('${a.id}')">${a.name}</button>`
@@ -2178,13 +2348,18 @@ function renderEinstellungen() {
       <div><label>Zahlungsziel (Tage)</label><input id="e-zahlungsziel" type="number" step="1" min="0" value="${esc(e.zahlungsziel)}"></div>
       <div><label>Stundensatz (€)</label><input id="e-stundensatz" type="number" step="0.5" min="0" value="${esc(e.stundensatz)}"></div>
     </div>
-    <div class="zeile" style="margin-top:14px">
-      <div class="waechst">
+    <div class="feldpaar">
+      <div>
+        <label>🎨 Design</label>
+        <select id="e-theme" onchange="themeAnwenden(this.value)">${THEMES.map((t) => `<option value="${t.id}" ${t.id === (e.theme || "auto") ? "selected" : ""}>${t.name}</option>`).join("")}</select>
+      </div>
+      <div>
         <label>Meine Branche</label>
         <select id="e-branche">${Object.entries(BRANCHEN).map(([id, b]) => `<option value="${id}" ${id === e.branche ? "selected" : ""}>${b.name}</option>`).join("")}</select>
       </div>
-      <button class="sekundaer" style="align-self:flex-end" onclick="brancheVorlageUebernehmen()">Preisliste mit Branchen-Vorlage füllen</button>
     </div>
+    <div style="margin-top:8px"><button class="sekundaer" onclick="brancheVorlageUebernehmen()">Preisliste mit Branchen-Vorlage füllen</button></div>
+    <div class="hinweis">Das Design wird sofort übernommen; mit „Speichern“ bleibt es dauerhaft. „Automatisch“ folgt der Hell-/Dunkel-Einstellung deines Geräts.</div>
     <label>Preisliste für den Notiz-Assistenten <span style="font-weight:400">(je Zeile: Begriff ; Preis ; Einheit)</span></label>
     <textarea id="e-preisliste" style="min-height:110px" placeholder="streichen ; 12,50 ; m²">${esc((e.preisliste || []).map((p) => p.begriff + " ; " + String(p.preis).replace(".", ",") + " ; " + p.einheit).join("\n"))}</textarea>
     <div class="hinweis">Taucht ein Begriff (z. B. „streichen“ oder „helfer“) in einer Notizzeile auf, setzt der Assistent automatisch diesen Preis ein. Preise unbedingt an den eigenen Betrieb anpassen.</div>
@@ -2197,9 +2372,12 @@ function renderEinstellungen() {
       Kleinunternehmer nach § 19 UStG (keine Umsatzsteuer ausweisen)
     </label>
     ${SERVER_SELBST ? "" : `
-    <label>🔗 PC-Adresse für die Synchronisierung <span style="font-weight:400">(steht im schwarzen Fenster des PC-Programms)</span></label>
-    <input id="e-serverbasis" value="${esc(serverBasis)}" placeholder="z. B. http://192.168.1.20:8722" inputmode="url" autocapitalize="off">
-    <div class="hinweis">Leer lassen, wenn kein PC-Programm genutzt wird — die Daten bleiben dann nur auf diesem Gerät.</div>`}
+    <label>🔗 Verbindung zum PC-Programm</label>
+    <div class="zeile" style="gap:8px">
+      <input class="waechst" id="e-serverbasis" value="${esc(serverBasis)}" placeholder="z. B. http://192.168.1.20:8722" inputmode="url" autocapitalize="off">
+      <button class="primaer" onclick="pcSuchen(false)">🔍 PC automatisch suchen</button>
+    </div>
+    <div class="hinweis" id="e-suchstatus">Am einfachsten: „PC automatisch suchen“ tippen (PC-Programm muss laufen, Handy im selben WLAN). Die Adresse steht sonst auch im schwarzen Fenster des PC-Programms. Leer lassen = nur auf diesem Gerät.</div>`}
     <div style="margin-top:14px"><button class="primaer" onclick="einstellungenSpeichern()">Speichern</button></div>
   </div>
 
@@ -2235,6 +2413,7 @@ function brancheVorlageUebernehmen() {
 function einstellungenSpeichern() {
   const e = daten.einstellungen;
   e.branche = document.getElementById("e-branche").value;
+  e.theme = document.getElementById("e-theme").value;
   e.firma = document.getElementById("e-firma").value.trim();
   e.inhaber = document.getElementById("e-inhaber").value.trim();
   e.strasse = document.getElementById("e-strasse").value.trim();

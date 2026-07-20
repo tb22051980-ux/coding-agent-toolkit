@@ -33,9 +33,10 @@ Es gibt zwei Betriebsarten:
      aufs Handy übertragen (z. B. per USB, Messenger an sich selbst
      oder Download) und antippen. Android fragt einmalig, ob die
      Installation aus dieser Quelle erlaubt werden soll → zulassen.
-     Danach in der App unter **Einstellungen → PC-Adresse** die
-     Adresse aus dem schwarzen Fenster eintragen (z. B.
-     `http://192.168.1.20:8722`) und speichern. Die App startet ab
+     Die App **sucht den PC beim ersten Start automatisch im WLAN** und
+     verbindet sich selbst; sonst unter **Einstellungen → Verbindung
+     zum PC-Programm → „🔍 PC automatisch suchen“** (oder die Adresse
+     aus dem schwarzen Fenster von Hand eintragen). Die App startet ab
      dann **auch unterwegs ohne Heimnetz** sofort und gleicht
      automatisch ab, sobald der PC erreichbar ist.
    - **Android — ohne Installation:** Adresse in Chrome öffnen →
@@ -124,6 +125,11 @@ arbeitet unterwegs normal weiter und speichert alles lokal.
   regelmäßige Folgetermine (wöchentlich bis vierteljährlich) anlegen —
   praktisch für Wartung und Pflege.
 - **Auftrag duplizieren:** bestehenden Auftrag als Vorlage kopieren.
+- **PC automatisch im WLAN finden:** die Handy-App sucht das laufende
+  PC-Programm selbständig (kein manuelles Eintippen der IP nötig).
+- **Dark Mode & Designs:** unter Einstellungen → 🎨 Design; „Automatisch“
+  folgt der Hell-/Dunkel-Einstellung des Geräts, dazu mehrere Farbwelten
+  (Blau, Grün, Anthrazit, Bordeaux, Sand) — in App und am PC.
 - **Kleinunternehmer-Modus (§ 19 UStG)** umschaltbar; USt-Satz,
   Zahlungsziel und Stundensatz einstellbar.
 - **Kunden** mit Adresse, Kontakt, Notizen und allen Aufträgen.

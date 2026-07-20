@@ -135,8 +135,10 @@ const server = http.createServer(async (req, res) => {
     }
 
     // ---- API ----
+    // "app"-Kennung, damit die Handy-App bei der WLAN-Suche sicher unser
+    // Programm erkennt (und nicht irgendeinen anderen Dienst auf Port 8722)
     if (pfad === "/api/status" && req.method === "GET") {
-      antwortJson(res, 200, { ok: true, zeit: new Date().toISOString() });
+      antwortJson(res, 200, { ok: true, app: "auftragsverwaltung", host: os.hostname(), zeit: new Date().toISOString() });
       return;
     }
 
