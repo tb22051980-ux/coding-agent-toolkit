@@ -1,0 +1,97 @@
+name: Auftragsverwaltung Windows-Exe bauen
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["**"]
+    paths:
+      - "apps/auftragsverwaltung/**"
+      - ".github/workflows/auftragsverwaltung-exe.yml"
+    tags: ["auftragsverwaltung-v*"]
+
+jobs:
+  # Diagnose: läuft überhaupt irgendein Job? (kein checkout, keine Actions)
+  # Wieder entfernen, sobald das GitHub-Konto entsperrt ist und der exe-Job läuft.
+  diagnose-ubuntu:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "ubuntu ok"
+  diagnose-windows:
+    runs-on: windows-latest
+    steps:
+      - run: echo "windows ok"
+
+  exe:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: apps/auftragsverwaltung
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: SEA-Blob erzeugen (index.html eingebettet)
+        run: node --experimental-sea-config sea-config.json
+
+      - name: node.exe kopieren und Blob injizieren
+        run: |
+          node -e "require('fs').copyFileSync(process.execPath, 'Auftragsverwaltung.exe')"
+          npx --yes postject Auftragsverwaltung.exe NODE_SEA_BLOB sea-prep.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
+
+      - name: Exe testen (Server starten, API und App-Auslieferung pruefen)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath ".\Auftragsverwaltung.exe" -PassThru
+          Start-Sleep -Seconds 4
+          $status = (Invoke-WebRequest -UseBasicParsing http://localhost:8722/api/status).StatusCode
+          $app = Invoke-WebRequest -UseBasicParsing http://localhost:8722/
+          Stop-Process -Id $p.Id -Force
+          if ($status -ne 200) { throw "api/status: $status" }
+          if ($app.Content -notmatch "Auftragsverwaltung") { throw "index.html fehlt in der Exe" }
+          Write-Host "Exe funktioniert."
+
+      - name: Exe als Artefakt bereitstellen
+        uses: actions/upload-artifact@v4
+        with:
+          name: Auftragsverwaltung-Windows
+          path: apps/auftragsverwaltung/Auftragsverwaltung.exe
+
+      - name: Release anlegen (nur bei Tag auftragsverwaltung-v*)
+        id: release-exe
+        if: startsWith(github.ref, 'refs/tags/auftragsverwaltung-v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $notizen = "Auftragsverwaltung fuer Handwerk, Transport und Umzug.`nWindows: Auftragsverwaltung.exe herunterladen, in einen eigenen Ordner legen (z. B. C:\MeinBetrieb), doppelklicken.`nAndroid: Auftragsverwaltung.apk auf dem Handy installieren (Installation aus unbekannten Quellen erlauben)."
+          gh release create $tag Auftragsverwaltung.exe --title $tag --notes $notizen
+
+  android-apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/auftragsverwaltung/android
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Werkzeuge installieren
+        run: sudo apt-get update -q && sudo apt-get install -y -q aapt zipalign apksigner
+
+      - name: APK bauen und signieren
+        run: ./build-apk.sh
+
+      - name: APK als Artefakt bereitstellen
+        uses: actions/upload-artifact@v4
+        with:
+          name: Auftragsverwaltung-Android
+          path: apps/auftragsverwaltung/android/Auftragsverwaltung.apk
+
+      - name: APK an Release anhängen (nur bei Tag auftragsverwaltung-v*)
+        if: startsWith(github.ref, 'refs/tags/auftragsverwaltung-v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.ref_name }}" Auftragsverwaltung.apk --clobber || (sleep 30 && gh release upload "${{ github.ref_name }}" Auftragsverwaltung.apk --clobber)

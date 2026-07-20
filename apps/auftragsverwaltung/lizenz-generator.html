@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lizenzschlüssel erzeugen (nur für den Verkäufer)</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 560px; margin: 40px auto; padding: 0 16px; color: #16232e; }
+  h1 { font-size: 1.3rem; }
+  input { font: inherit; padding: 10px; width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; }
+  .schluessel { font-size: 1.8rem; font-weight: 800; letter-spacing: 2px; margin: 14px 0; color: #1d5c8f; user-select: all; }
+  .hinweis { color: #64748b; font-size: .9rem; }
+  .warn { background: #fef3c7; border: 1px solid #f0c674; border-radius: 8px; padding: 10px 14px; font-size: .9rem; }
+</style>
+</head>
+<body>
+  <h1>🔑 Lizenzschlüssel erzeugen</h1>
+  <p class="warn"><b>Nur für dich als Verkäufer.</b> Nicht an Kunden weitergeben. Gib den Firmennamen des Kunden ein — der Schlüssel gehört dann fest zu diesem Namen.</p>
+  <label>Firmenname des Kunden (genau notieren!)</label>
+  <input id="name" placeholder="z. B. Mustermann Umzüge" oninput="erzeuge()" autofocus>
+  <div class="schluessel" id="key">—</div>
+  <p class="hinweis">Dem Kunden weitergeben: <b>diesen Firmennamen</b> und <b>diesen Schlüssel</b>. In der App unter „Einstellungen → Vollversion freischalten“ beides genau so eintragen.</p>
+
+<script>
+  "use strict";
+  // MUSS mit LIZENZ_SALT und lizenzSchluessel() in index.html übereinstimmen.
+  const LIZENZ_SALT = "AVW-2026-Handwerk";
+  function lizenzSchluessel(name) {
+    const basis = LIZENZ_SALT + "|" + String(name || "").trim().toLowerCase().replace(/\s+/g, "");
+    let h1 = 2166136261 >>> 0, h2 = 5381 >>> 0;
+    for (let i = 0; i < basis.length; i++) {
+      const c = basis.charCodeAt(i);
+      h1 = Math.imul(h1 ^ c, 16777619) >>> 0;
+      h2 = (Math.imul(h2, 33) ^ c) >>> 0;
+    }
+    const roh = (h1.toString(36) + h2.toString(36)).toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const s = (roh + "ABCDEFGHJKLM").slice(0, 12);
+    return s.slice(0, 4) + "-" + s.slice(4, 8) + "-" + s.slice(8, 12);
+  }
+  function erzeuge() {
+    const name = document.getElementById("name").value.trim();
+    document.getElementById("key").textContent = name ? lizenzSchluessel(name) : "—";
+  }
+</script>
+</body>
+</html>
