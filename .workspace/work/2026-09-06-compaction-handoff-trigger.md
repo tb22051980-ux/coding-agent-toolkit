@@ -134,13 +134,30 @@ python3 -c "import json;print(json.load(open('.workspace/memory/.index_state.jso
 
 ### Open — two decisions, neither urgent
 
-**`auto_loaded_cap` is unset.** `verify_index.sh` warns about it. Not
-set here on purpose: `memory_init_index.sh`'s own header says the cap
-value "is decided downstream; init does not invent one". It is a
-per-project budget decision, so it wants a maintainer, not a default
-copied from a fixture.
+**Token budgets — SET 2026-09-06** (maintainer decision, taken after
+the tooling question was put to them). `auto_loaded_cap: 5000` via
+`memory_init_index.sh --cap`, `default_file_cap: 4000` added to the
+frontmatter by hand — init never seeds that one but does preserve it
+across re-runs, verified.
 
-**Promotion policy.** The original questions stand and are still
+Only `default_file_cap` actually bites. `auto_loaded_cap` is printed by
+`verify_index.sh` and warned about when absent, but is never checked
+against anything. The per-file cap is enforced; proven by lowering it to
+2000 on a scratch copy, which produced:
+
+```
+history.md: 2760 tokens against a cap of 2000 — over budget. Trim it:
+keep the conclusion and a pointer, move the cut text to
+history_archive.md. /memory-gc will not catch this (the entry is active
+and correctly so).
+```
+
+At 4000, `history.md` (2760) keeps ~45% headroom, so the warning fires
+when the build log genuinely needs archiving rather than immediately.
+Documented in `AGENTS.md` § "Project memory", since which cap is real is
+not discoverable from the index alone.
+
+**Promotion policy — still open.** The original questions stand and are still
 deliberately unanswered: what counts as "friction worth keeping" (a fix
 that took more than one attempt? a user correction? a host-behaviour
 surprise?), and who promotes a `.workspace/memory/auto/` entry into
@@ -152,5 +169,4 @@ tooling, not about tooling to build. `auto/` remains empty apart from
 
 ## Remaining work
 
-The two decisions in C. Both are maintainer calls, neither blocks
-anything.
+The promotion policy in C. A maintainer call; nothing blocks on it.

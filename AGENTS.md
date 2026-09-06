@@ -142,6 +142,16 @@ symbols** the memory describes, or `none`. It is not a description field
 feeds the result into GC, so prose there produces phantom missing anchors
 and a wrong signal.
 
+Two token budgets sit in the index frontmatter, and only one of them
+bites. `auto_loaded_cap: 5000` is declarative — `verify_index.sh` prints
+it and warns when it is absent, but never checks anything against it.
+`default_file_cap: 4000` is enforced per memory file: over it, verify
+names the file and the remedy — keep the conclusion and a pointer, move
+the cut text to a sibling `<name>_archive.md`. An archive costs nothing
+per session, since only the index is auto-loaded. `/memory-gc` will not
+catch this on its own: an oversized file that is still actively used is
+`active` and correctly so.
+
 `.index_state.json` beside the index is gitignored runtime state — the
 per-file reference signals plus `last_gc_run`. It does not travel with
 the repository, so each machine runs the init script once; a missing

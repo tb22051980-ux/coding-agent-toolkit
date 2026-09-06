@@ -3,6 +3,8 @@
 # This is the single auto-loaded memory artifact; @-include only this file.
 # Edit statuses through /memory-gc, not by hand. The index is the source of
 # truth: it wins over individual memory-file frontmatter on any conflict.
+auto_loaded_cap: 5000
+default_file_cap: 4000
 ---
 
 # Memory Index
