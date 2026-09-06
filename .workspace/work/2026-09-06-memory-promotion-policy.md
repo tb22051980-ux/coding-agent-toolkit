@@ -1,8 +1,10 @@
 # Proposal — promotion policy for `.workspace/memory/`
 
-**Status: proposal, not policy.** Nothing here is installed. If it is
-accepted, the durable half moves into `AGENTS.md` § "Project memory" and
-this sheet closes. Origin: the last open item in
+**Status: ACCEPTED 2026-09-06 with one amendment; one part deferred.**
+The criteria, the two rhythms and the `auto/` lifecycle are installed in
+`AGENTS.md` § "Promoting to memory". The `/ship` step change is deferred
+with a stated blocker — see "Decision" at the foot of this sheet, which
+is now the live part. Origin: the last open item in
 `2026-09-06-compaction-handoff-trigger.md` § C.
 
 ---
@@ -134,19 +136,55 @@ At 2760 there is room for roughly a dozen more entries before this fires.
 
 ---
 
-## If accepted
+## Decision (2026-09-06)
 
-1. The three rules above (what earns a place, where it goes, the `auto/`
-   lifecycle) move into `AGENTS.md` § "Project memory", compressed to
-   about a paragraph each.
-2. `skills/ship/SKILL.md` gains a closing step: propose memory entries
-   for this unit, show them, write only on acceptance. That change is
-   subject to the three-surface rule — canonical, plugin mirror,
-   Codex prompt — so it is not a one-file edit.
-3. This sheet closes.
+**Accepted**, with one amendment and one deferral.
 
-Step 2 is the only part that touches a step definition, and it is the
-part worth arguing about first.
+### Installed
+
+The criteria, the two rhythms, the propose-then-accept split and the
+`auto/` lifecycle are in `AGENTS.md` § "Promoting to memory", compressed
+to three paragraphs.
+
+### Amendment — headless runs
+
+The draft said "agent proposes, maintainer disposes" without saying what
+happens when there is no maintainer. This toolkit runs headless by
+design (`codex exec`, `claude -p`), and a rule whose only enforcement is
+a human in the loop silently becomes "agent writes memory unattended" the
+first time nobody is there. Added: **headless, write the proposal into
+the work unit and leave memory alone.** Deferring a promotion costs one
+session's freshness; an unattended write costs the project's instructions.
+
+### Deferred — the `/ship` closing step, and why
+
+Adding "propose memory entries for this unit" to `skills/ship/SKILL.md`
+is the right shape and is *not* being done here. Two reasons, the first
+decisive:
+
+1. **The three-surface rule cannot be honoured from this session.**
+   `AGENTS.md` requires canonical, plugin mirror and Codex prompt to move
+   together, with byte-identity between the first two. The mirror lives
+   in `stefan-jansen/coding-agent-plugins`, attached read-only — this
+   session can clone it and cannot push to it. Editing the canonical
+   skill alone would break the invariant the project checks with
+   `diff -q`, and a knowingly broken invariant is worse than an unwritten
+   step.
+2. **`/ship` is idempotent by hard constraint 4**, and has a section
+   (`## Idempotency`) enforcing it. A promotion step must be a no-op on
+   re-run of an already-shipped unit — proposing the same entries twice
+   is exactly the annoyance that gets a step's suggestions ignored. That
+   is a design question, not a paragraph to append.
+
+**What it needs to land:** write access to the plugins repo (or a
+maintainer to carry the mirror commit), plus a decision on the
+idempotency marker — most likely "propose only when the unit's work
+directory has no recorded memory proposal yet".
+
+Until then the policy has criteria and a stated moment but no automatic
+trigger. That is a real limit, not a papered-over one: promotion happens
+because someone runs it, and `AGENTS.md` now says what to do when they
+do.
 
 ## What is deliberately not proposed
 

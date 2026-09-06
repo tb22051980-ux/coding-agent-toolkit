@@ -152,6 +152,29 @@ per session, since only the index is auto-loaded. `/memory-gc` will not
 catch this on its own: an oversized file that is still actively used is
 `active` and correctly so.
 
+### Promoting to memory
+
+An entry earns a place if it changed a step, a hard constraint, or a
+document — or should have, and says what is still unfixed. When that is
+arguable, the tiebreaker is whether a future session would spend real
+work re-deriving it. A one-off fix that left no lasting state, a dead end
+resolved in-session, and anything one `git log` re-derives are session
+noise, not memory.
+
+Promote when a unit ships, while the lessons are fresh; triage `auto/` at
+the weekly review nudge. The agent drafts the entry and shows it, a
+person accepts it — memory is instructions, so an agent does not write it
+unattended. Headless, with nobody to accept: write the proposal into the
+work unit and leave memory alone.
+
+`.workspace/memory/auto/` is inside the managed tree — every `*.md` there
+is a full index entry with a budget cost, and no tool ever removes one.
+At each triage an entry leaves in one of three directions: promoted
+(content folded in, original deleted), archived to `_archive/` (the only
+directory the tooling skips), or left, and only while under a week old.
+Letting one age into `deprecated` and stay indexed is the failure this
+rule prevents.
+
 `.index_state.json` beside the index is gitignored runtime state — the
 per-file reference signals plus `last_gc_run`. It does not travel with
 the repository, so each machine runs the init script once; a missing

@@ -157,7 +157,12 @@ when the build log genuinely needs archiving rather than immediately.
 Documented in `AGENTS.md` § "Project memory", since which cap is real is
 not discoverable from the index alone.
 
-**Promotion policy — proposed 2026-09-06, awaiting a decision.** Drafted
+**Promotion policy — DECIDED 2026-09-06.** Accepted with one amendment
+(headless runs write the proposal into the work unit, never into memory)
+and one deferral (the `/ship` closing step — the plugin mirror is
+attached read-only here, so the three-surface rule cannot be honoured).
+The criteria, rhythms and `auto/` lifecycle are installed in `AGENTS.md`
+§ "Promoting to memory". Drafted
 in `.workspace/work/2026-09-06-memory-promotion-policy.md`, not
 installed. It answers both original questions (what counts as friction
 worth keeping; who promotes an `auto/` entry and when) and adds a third
@@ -171,5 +176,8 @@ yet.
 
 ## Remaining work
 
-The promotion policy in C — proposed, awaiting a decision. See
-`.workspace/work/2026-09-06-memory-promotion-policy.md`.
+None on this sheet. The one thing still unbuilt is the `/ship` closing
+step that would give the promotion policy an automatic trigger; it is
+blocked on write access to the plugins repo and on an idempotency
+decision, both recorded in
+`.workspace/work/2026-09-06-memory-promotion-policy.md` § Decision.
