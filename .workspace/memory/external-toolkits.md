@@ -111,11 +111,13 @@ instrument for a host- and language-neutral workflow toolkit.
    promotes recurring friction into durable memory) is what
    `history.md`'s closed-friction backlog is maintained by hand today.
    Step 0 found the machinery already exists too: the `memory@local`
-   plugin ships `/memory-gc`, `/memory-review` and `check_anchors.sh`.
-   What is missing here is only its sidecar,
-   `.workspace/memory/.index_state.json` — absent, so `/memory-gc` has
-   never run and `pre-compact.sh`'s memory nudge silently never fires.
-   Still the one open item; see the work note § C.
+   plugin ships `/memory-gc`, `/memory-review` and `check_anchors.sh`,
+   enabled here but never run. Initialised 2026-09-06 — sidecar seeded,
+   GC baseline stamped. It immediately caught two errors in the
+   hand-kept index: `history.md`'s token count was off by 2.4× (~6500
+   indexed vs 2760 measured), and `anchors` had been used as a
+   description field in both entries, producing phantom missing anchors.
+   What remains is policy, not tooling; see the work note § C.
 
 Marginal, listed for completeness: `skills/verification-loop/SKILL.md`
 has a tidy compact report shape (per-phase PASS/FAIL plus one overall

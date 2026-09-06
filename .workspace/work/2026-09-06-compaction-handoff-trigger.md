@@ -83,49 +83,74 @@ example of a session-relative rotating file. The principle holds; only
 the example is now dead. Rewording a hard constraint is the maintainer's
 call, not a drive-by fix.
 
-## C. Promote recurring friction into memory — OPEN, reframed
+## C. Promote recurring friction into memory — sidecar DONE, policy OPEN
 
-Step 0 changed this section's premise. The `memory@local` plugin (also
-enabled in `.claude/settings.json`) already ships the machinery:
-`/memory-gc` proposes status transitions from `last_referenced`,
-reference counts and anchor health; `/memory-review` and
-`bin/check_anchors.sh` back it. It reads a sidecar,
-`.workspace/memory/.index_state.json`:
+Step 0 changed this section's premise, and the first move is now done.
 
-```json
-{ "auto_loaded_cap": 5000, "last_gc_run": "YYYY-MM-DD",
-  "files": { "<slug>.md": { "last_referenced": "...", "tokens": 0 } } }
-```
+### Done 2026-09-06 — memory tooling initialised
 
-**That sidecar does not exist in this project:**
+The `memory@local` plugin already ships the machinery: `/memory-gc`
+proposes status transitions from `last_referenced`, reference counts and
+anchor health, backed by `memory_init_index.sh`, `verify_index.sh` and
+`check_anchors.sh`. It was enabled here but had never been run — no
+`.workspace/memory/.index_state.json` existed, so `/memory-gc` had never
+run and `pre-compact.sh`'s memory nudge was gated off.
+
+Ran, in order: `memory_init_index.sh`, then `gc_propose.py` →
+`gc_apply.py`. Baseline stamped, `last_gc_run: 2026-09-06`, no
+transitions proposed (`history.md` at 75 days is inside the 90-day stale
+threshold).
+
+Three things it surfaced:
+
+1. **The hand-kept token counts were badly wrong.** `history.md` was
+   indexed at `~6500`; `bin/token_count.py` measures **2760** — off by
+   2.4×. Any memory-budget reasoning done against the old number was
+   wrong. Now computed, not guessed.
+2. **`anchors` had been misused as a description field** — in the
+   `history.md` entry from the start, and in the `external-toolkits.md`
+   entry this sheet's own change added. The spec is comma-separated
+   file paths / commands / symbols, resolved against the working tree by
+   `check_anchors.sh` and fed into GC. The prose was splitting on its
+   commas into phantom anchors: 4 missing across 2 entries. Corrected to
+   a real path and `none`; now 1 present, 0 missing. `AGENTS.md`
+   § "Project memory" documents the field so it does not drift back.
+3. **`memory_init_index.sh` rewrites `MEMORY_INDEX.md` wholesale.** It
+   preserves entries, statuses and anchors, but drops anything else in
+   the file — here, the hand-written block explaining how to register a
+   new memory file. Moved to `AGENTS.md` before running it. Anyone
+   adding prose to the index should expect the next init to eat it.
+
+Verification:
 
 ```bash
-ls -a .workspace/memory/
-# expect: MEMORY_INDEX.md, history.md, external-toolkits.md, auto/
-#         — and no .index_state.json
+bash <plugins>/memory/bin/verify_index.sh
+# expect: Result: OK — 0 missing entries, 2 file(s) verified
+bash <plugins>/memory/bin/check_anchors.sh
+# expect: Summary: 1 present, 0 missing, 0 n/a (across 2 entries)
+python3 -c "import json;print(json.load(open('.workspace/memory/.index_state.json'))['last_gc_run'])"
+# expect: a date, not None  (local only — the sidecar is gitignored)
 ```
 
-Two consequences, both live today:
+### Open — two decisions, neither urgent
 
-1. `/memory-gc` has never run here, so `MEMORY_INDEX.md`'s
-   `last_referenced` dates are hand-maintained and already drifting
-   (`history.md` still reads 2026-06-23).
-2. `pre-compact.sh`'s memory-relevance nudge is gated on that sidecar
-   existing. Absent it, the nudge silently never fires — this project
-   gets the compaction handoff but not the memory review.
+**`auto_loaded_cap` is unset.** `verify_index.sh` warns about it. Not
+set here on purpose: `memory_init_index.sh`'s own header says the cap
+value "is decided downstream; init does not invent one". It is a
+per-project budget decision, so it wants a maintainer, not a default
+copied from a fixture.
 
-So the concrete next step is **initialise the memory plugin's sidecar
-here**, not build anything: run the plugin's init path, then
-`/memory-gc` once to establish a `last_gc_run` baseline.
-
-The original open questions (what counts as "friction worth keeping",
-who promotes an `auto/` entry into `history.md`) still stand and are
-still deliberately unanswered — but they are now questions about a
-*policy on top of existing tooling*, not about tooling to build.
-`.workspace/memory/auto/` remains empty apart from `.gitkeep`.
+**Promotion policy.** The original questions stand and are still
+deliberately unanswered: what counts as "friction worth keeping" (a fix
+that took more than one attempt? a user correction? a host-behaviour
+surprise?), and who promotes a `.workspace/memory/auto/` entry into
+`history.md`. These are now questions about policy on top of working
+tooling, not about tooling to build. `auto/` remains empty apart from
+`.gitkeep`.
 
 ---
 
 ## Remaining work
 
-C only, and its first move is configuration, not code.
+The two decisions in C. Both are maintainer calls, neither blocks
+anything.
