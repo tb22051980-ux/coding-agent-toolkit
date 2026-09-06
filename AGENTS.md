@@ -95,11 +95,24 @@ will silently skip an invalid prompt.
 
 ## Session progress tracking
 
-Write hourly progress under `.workspace/transitions/YYYY-MM-DD/HH.md`
-(the project hook auto-creates the file). Append every 15–20 minutes
-or at milestones. Run `/handoff` at end-of-session or when approaching
-a context-budget cliff to produce the durable `HHMMSS.md` snapshot that
-`/continue` resumes from.
+Transition files are one per event —
+`.workspace/transitions/YYYY-MM-DD/HHMMSS.md`, no hour-based grouping.
+Three things write them, two of them without being asked:
+
+- **Compaction** (automatic, `transition@local`). `PreCompact` steers
+  the compact summary to be a cold-startable handoff; `PostCompact`
+  writes it to a timestamped file. Nothing to invoke.
+- **`/handoff`** (manual). The explicit snapshot, and the only one
+  carrying the verification block `/continue` runs. Use it at
+  end-of-session and before a context-budget cliff — compaction covers
+  the cliff only when it actually fires.
+- **`SessionEnd`** (automatic) appends an exit marker to the day's most
+  recent transition file, or does nothing when there is none.
+
+There is no hourly-progress hook. The `UserPromptSubmit` stub that
+created `HH.md` was removed on 2026-08-05 as a thin-file anti-pattern;
+`transition/hooks/init-transition.sh` survives upstream but is
+unregistered.
 
 ## References (read on demand)
 

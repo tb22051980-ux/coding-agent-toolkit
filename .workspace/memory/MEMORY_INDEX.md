@@ -9,7 +9,7 @@
 ## external-toolkits.md
 - status: active
 - last_referenced: 2026-09-06
-- tokens: ~1400
+- tokens: ~1500
 - anchors: verdicts on external agent-toolkit repos we evaluated (one section per repo: what it is, adopt/decline, concepts worth taking)
 
 ---

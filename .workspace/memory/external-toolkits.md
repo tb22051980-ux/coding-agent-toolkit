@@ -87,26 +87,35 @@ instrument for a host- and language-neutral workflow toolkit.
 
 ### What is worth taking (concepts, not files)
 
-1. **`PreCompact` as a trigger for a durable snapshot.** `AGENTS.md`
-   currently says to run `/handoff` "when approaching a context-budget
-   cliff" — an instruction to *notice* a state, issued to the actor
-   least able to notice it at that moment. Claude Code has a
-   `PreCompact` hook event; wiring the durable write to it closes a
-   real hole. Their own implementation is trivial (one timestamp line
-   to a log) — the wiring is the idea, not the code. Followed up in
-   `.workspace/work/2026-09-06-compaction-handoff-trigger.md`.
-2. **`SessionEnd` as a second trigger for the same.** Same argument,
-   different moment. We write `HH.md` hourly; a session that ends
-   without a durable `HHMMSS.md` loses exactly what `/continue`
-   resumes from.
+1. ~~**`PreCompact` as a trigger for a durable snapshot.**~~ **Already
+   built** — verified 2026-09-06 against
+   `stefan-jansen/coding-agent-plugins` at `231add3`. The
+   `transition@local` plugin registers `PreCompact`, `PostCompact` and
+   `SessionEnd`, and its design beats what we would have built. The
+   reusable lesson is in
+   `.workspace/work/2026-09-06-compaction-handoff-trigger.md` § A:
+   `PreCompact` stdout becomes the compaction's `custom_instructions`,
+   so the hook *steers the summary the model is about to write* rather
+   than writing a breadcrumb, and `PostCompact` receives that summary
+   and persists it. The seam is "model writes, hook steers and
+   persists" — not "facts a script can gather vs prose only an agent
+   can write".
+2. ~~**`SessionEnd` as a second trigger for the same.**~~ **Already
+   built**, and deliberately narrower: it annotates the day's most
+   recent transition file and does nothing when none exists, because a
+   bare "session ended" file is the thin-file anti-pattern that got
+   the hourly `HH.md` stub removed on 2026-08-05.
 3. **The idea behind `continuous-learning`.** Their implementation is
    weak — the Stop hook counts messages and prints a nudge, it
    extracts nothing. But the concept (an end-of-session pass that
    promotes recurring friction into durable memory) is what
-   `history.md`'s closed-friction backlog is maintained by hand today,
-   and `.claude/settings.json` already sets
-   `autoMemoryDirectory: ./.workspace/memory/auto`. Half the machinery
-   exists.
+   `history.md`'s closed-friction backlog is maintained by hand today.
+   Step 0 found the machinery already exists too: the `memory@local`
+   plugin ships `/memory-gc`, `/memory-review` and `check_anchors.sh`.
+   What is missing here is only its sidecar,
+   `.workspace/memory/.index_state.json` — absent, so `/memory-gc` has
+   never run and `pre-compact.sh`'s memory nudge silently never fires.
+   Still the one open item; see the work note § C.
 
 Marginal, listed for completeness: `skills/verification-loop/SKILL.md`
 has a tidy compact report shape (per-phase PASS/FAIL plus one overall
