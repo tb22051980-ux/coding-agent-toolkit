@@ -6,6 +6,12 @@
 - tokens: ~6500
 - anchors: chronological build log + closed-friction backlog (formerly `docs/HISTORY.md`; moved out of reader-facing docs/ on rename)
 
+## external-toolkits.md
+- status: active
+- last_referenced: 2026-09-06
+- tokens: ~1400
+- anchors: verdicts on external agent-toolkit repos we evaluated (one section per repo: what it is, adopt/decline, concepts worth taking)
+
 ---
 
 Write project-specific persistent state here as
