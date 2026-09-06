@@ -157,16 +157,19 @@ when the build log genuinely needs archiving rather than immediately.
 Documented in `AGENTS.md` § "Project memory", since which cap is real is
 not discoverable from the index alone.
 
-**Promotion policy — still open.** The original questions stand and are still
-deliberately unanswered: what counts as "friction worth keeping" (a fix
-that took more than one attempt? a user correction? a host-behaviour
-surprise?), and who promotes a `.workspace/memory/auto/` entry into
-`history.md`. These are now questions about policy on top of working
-tooling, not about tooling to build. `auto/` remains empty apart from
-`.gitkeep`.
+**Promotion policy — proposed 2026-09-06, awaiting a decision.** Drafted
+in `.workspace/work/2026-09-06-memory-promotion-policy.md`, not
+installed. It answers both original questions (what counts as friction
+worth keeping; who promotes an `auto/` entry and when) and adds a third
+the drafting surfaced: `auto/*.md` files are indexed as full memory
+entries with a budget cost, and nothing in the tooling ever removes
+them, so the directory needs a stated lifecycle before it is used.
+`auto/` is still empty apart from `.gitkeep` — the trap has not sprung
+yet.
 
 ---
 
 ## Remaining work
 
-The promotion policy in C. A maintainer call; nothing blocks on it.
+The promotion policy in C — proposed, awaiting a decision. See
+`.workspace/work/2026-09-06-memory-promotion-policy.md`.
